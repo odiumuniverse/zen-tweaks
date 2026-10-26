@@ -25,8 +25,6 @@ Follow the steps on **[odiumuniverse.github.io/zen-tweaks](https://odiumuniverse
 
 The toggles live in `about:addons` → Zen Tweaks → Options. They are stored as `extensions.zen-tweaks.*` settings.
 
-Only want the sidebar over fullscreen video? It is also a plain CSS mod, see [`mod/`](mod/). That one needs no settings changes.
-
 ## Development
 
 `./build.sh` packs `extension/` into `/tmp/zen-tweaks.xpi`. Install it from `about:addons` → gear → **Install Add-on From File**.

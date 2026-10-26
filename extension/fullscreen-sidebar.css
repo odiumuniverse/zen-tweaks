@@ -7,8 +7,8 @@
  * the zen-has-hover attribute there, so these rules show the sidebar again,
  * park it past the left edge and slide it in on that attribute.
  *
- * Every declaration is !important: loaded as a user sheet (Zen Tweaks) or
- * as a mod, the rules would otherwise lose to Zen's own styles and to the
+ * parent.js registers this file as a user sheet, so every declaration is
+ * !important: otherwise the rules would lose to Zen's own styles and to the
  * inline margin-top Firefox uses to push the toolbox up in fullscreen.
  */
 :root[zen-compact-mode="true"][inDOMFullscreen="true"]:not([zen-right-side="true"]) #navigator-toolbox {
