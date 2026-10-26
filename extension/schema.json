@@ -6,7 +6,7 @@
       {
         "id": "FeatureName",
         "type": "string",
-        "enum": ["fullscreenSidebar", "workspaceTabs", "reopenOnActivate", "pipButtons", "arcPip"]
+        "enum": ["fullscreenSidebar", "workspaceTabs", "reopenOnActivate", "pipButtons", "arcPip", "arcNewTab"]
       },
       {
         "id": "Feature",

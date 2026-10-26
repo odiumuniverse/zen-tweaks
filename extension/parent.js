@@ -6,8 +6,16 @@
 // браузера. Обычному WebExtension ни одна из доработок недоступна.
 //
 // Каждая доработка включается настройкой extensions.zen-tweaks.<name>, по
-// умолчанию true. Страница настроек меняет их через setFeature, а наблюдатель
-// за настройками сразу включает или выключает доработку, без перезапуска.
+// умолчанию true, если у доработки нет своего defaultEnabled. Страница
+// настроек меняет их через setFeature, а наблюдатель за настройками сразу
+// включает или выключает доработку, без перезапуска.
+//
+// Доработка с excludes взаимоисключающая с названной: включение одной
+// выключает другую. Доработка с zenPrefs переопределяет настройки Zen:
+// при включении запоминает прежние значения в extensions.zen-tweaks.<name>.saved
+// и ставит свои, при выключении возвращает прежние. Если пользователь сам
+// меняет в Zen настройку из zenPrefs.required, доработка выключается, а
+// остальные её настройки Zen остаются как есть.
 
 const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
@@ -74,8 +82,36 @@ const PIP_ICONS = [
   ["seekForward", "", "0 0 32 32", seekIcon("M16 6A11 11 0 1 0 25.53 11.5", "M15 2.5L19.5 6L15 9.5z")],
 ];
 
-function isEnabled(name) {
-  return Services.prefs.getBoolPref(PREF_BRANCH + name, true);
+// Значение настройки с учётом значения по умолчанию
+function readPref(name) {
+  switch (Services.prefs.getPrefType(name)) {
+    case Ci.nsIPrefBranch.PREF_BOOL:
+      return Services.prefs.getBoolPref(name);
+    case Ci.nsIPrefBranch.PREF_INT:
+      return Services.prefs.getIntPref(name);
+    case Ci.nsIPrefBranch.PREF_STRING:
+      return Services.prefs.getStringPref(name);
+    default:
+      return undefined;
+  }
+}
+
+// Значение, заданное пользователем, или null, если действует умолчание
+function readUserPref(name) {
+  return Services.prefs.prefHasUserValue(name) ? readPref(name) : null;
+}
+
+// null снимает значение пользователя и возвращает умолчание
+function writePref(name, value) {
+  if (value === null) {
+    Services.prefs.clearUserPref(name);
+  } else if (typeof value == "boolean") {
+    Services.prefs.setBoolPref(name, value);
+  } else if (typeof value == "number") {
+    Services.prefs.setIntPref(name, value);
+  } else {
+    Services.prefs.setStringPref(name, value);
+  }
 }
 
 // Приватные окна тоже считаются: они на экране, открывать ничего не надо
@@ -118,6 +154,38 @@ class UserSheet {
   }
 }
 
+// Две доработки правят результаты адресной строки до сортировки. sort
+// подменяется один раз, а доработки кладут в него свои фильтры: иначе
+// выключение одной сняло бы подмену и у другой.
+const muxerFilters = new Set();
+
+function addMuxerFilter(filter) {
+  const muxer = lazy.UrlbarMuxerStandard;
+  if (!muxerFilters.size) {
+    const sort = Object.getPrototypeOf(muxer).sort;
+    muxer.sort = function (context, results) {
+      for (const muxerFilter of muxerFilters) {
+        results = muxerFilter(context, results);
+      }
+      return sort.call(this, context, results);
+    };
+  }
+  muxerFilters.add(filter);
+}
+
+function removeMuxerFilter(filter) {
+  muxerFilters.delete(filter);
+  if (!muxerFilters.size) {
+    // sort — метод прототипа, собственное свойство ставит только addMuxerFilter
+    delete lazy.UrlbarMuxerStandard.sort;
+  }
+}
+
+// visibleTabs — вкладки текущего пространства и Essentials
+function spaceTabUrls(win) {
+  return new Set(win.gBrowser.visibleTabs.map(tab => tab.linkedBrowser?.registeredOpenURI?.spec));
+}
+
 // Zen регистрирует открытые вкладки всех пространств в одной таблице, и
 // адресная строка предлагает «Перейти на вкладку» из чужого пространства,
 // а Enter туда перебрасывает. Такие результаты выкидываются до сортировки:
@@ -126,30 +194,82 @@ class UserSheet {
 // эвристики адресная строка откроет введённый адрес сама.
 class WorkspaceTabs {
   available = true;
+  excludes = "arcNewTab";
 
   enable() {
-    const muxer = lazy.UrlbarMuxerStandard;
-    const sort = Object.getPrototypeOf(muxer).sort;
-    const { TAB_SWITCH } = lazy.UrlbarShared.RESULT_TYPE;
-    muxer.sort = function (context, results) {
-      const win = Services.wm.getMostRecentWindow("navigator:browser");
-      if (!context.isPrivate && win?.gZenWorkspaces) {
-        // visibleTabs — вкладки текущего пространства и Essentials
-        const workspaceUrls = new Set(
-          win.gBrowser.visibleTabs.map(tab => tab.linkedBrowser?.registeredOpenURI?.spec)
-        );
-        results = results.filter(
-          r => r.type != TAB_SWITCH || workspaceUrls.has(r.payload.url)
-        );
-      }
-      return sort.call(this, context, results);
-    };
+    addMuxerFilter(this.#filter);
   }
 
   disable() {
-    // sort — метод прототипа, собственное свойство ставит только enable
-    delete lazy.UrlbarMuxerStandard.sort;
+    removeMuxerFilter(this.#filter);
   }
+
+  #filter = (context, results) => {
+    const win = Services.wm.getMostRecentWindow("navigator:browser");
+    if (context.isPrivate || !win?.gZenWorkspaces) {
+      return results;
+    }
+    const { TAB_SWITCH } = lazy.UrlbarShared.RESULT_TYPE;
+    const workspaceUrls = spaceTabUrls(win);
+    return results.filter(r => r.type != TAB_SWITCH || workspaceUrls.has(r.payload.url));
+  };
+}
+
+// Cmd+T в духе Arc. В строке новой вкладки открытая вкладка текущего
+// пространства, совпавшая с набранным, встаёт первой, и Enter переключает на
+// неё, а не ищет в поисковике. Cmd+L не трогаем: Arc там открывает найденный
+// адрес в текущей вкладке.
+class ArcNewTab {
+  available = true;
+  defaultEnabled = false;
+  excludes = "workspaceTabs";
+  zenPrefs = {
+    // Без них доработка теряет смысл: Cmd+T открывает строку, а не пустую
+    // вкладку, и новая вкладка встаёт наверх, как в Arc. Кнопку «Новая
+    // вкладка» прячет zen.tabs.show-newtab-vertical, его не трогаем: место
+    // новых вкладок от него не зависит.
+    required: {
+      "zen.urlbar.replace-newtab": true,
+      "zen.view.show-newtab-button-top": true,
+    },
+    // Arc открывает строку пустой, а Zen полминуты помнит брошенный в ней текст
+    extra: { "zen.urlbar.wait-to-clear": 0 },
+  };
+  #promoteSpaceTab;
+
+  constructor(promoteSpaceTab) {
+    this.#promoteSpaceTab = promoteSpaceTab;
+  }
+
+  enable() {
+    addMuxerFilter(this.#filter);
+  }
+
+  disable() {
+    removeMuxerFilter(this.#filter);
+  }
+
+  #filter = (context, results) => {
+    const win = Services.wm.getMostRecentWindow("navigator:browser");
+    // zen-newtab стоит на адресной строке, пока она заменяет новую вкладку
+    if (
+      context.isPrivate ||
+      context.searchMode ||
+      !context.searchString.trim() ||
+      !win?.gURLBar.hasAttribute("zen-newtab")
+    ) {
+      return results;
+    }
+    const promoted = this.#promoteSpaceTab(results, {
+      tabSwitchType: lazy.UrlbarShared.RESULT_TYPE.TAB_SWITCH,
+      spaceUrls: spaceTabUrls(win),
+      query: context.searchString,
+    });
+    if (promoted !== results) {
+      context.heuristicResult = promoted[0];
+    }
+    return promoted;
+  };
 }
 
 // Cmd+Tab, в отличие от щелчка в Dock, не шлёт приложению reopen, и Zen без
@@ -202,6 +322,8 @@ class ReopenOnActivate {
 // pipTopBar из pip-layout.mjs.
 class ArcPip {
   available = true;
+  defaultEnabled = false;
+  excludes = "pipButtons";
   #sheet;
   #extension;
   #pipTopBar;
@@ -381,6 +503,11 @@ this.zenTweaks = class extends ExtensionAPI {
   #features = null;
   #active = new Set();
   #resourceHost = null;
+  #starting = false;
+  #writingZenPrefs = false;
+  // Доработки, которые выключились, потому что пользователь сам поменял их
+  // важную настройку в Zen: остальные их настройки Zen тогда не возвращаем
+  #keepZenPrefs = new Set();
 
   onStartup() {
     // loadSubScript не грузит файлы из xpi, а ES-модуль грузится через
@@ -391,20 +518,40 @@ this.zenTweaks = class extends ExtensionAPI {
     const { pipTopBar } = ChromeUtils.importESModule(
       `resource://${this.#resourceHost}/pip-layout.mjs`
     );
+    const { promoteSpaceTab } = ChromeUtils.importESModule(
+      `resource://${this.#resourceHost}/newtab-results.mjs`
+    );
 
     this.#features = new Map([
       ["fullscreenSidebar", new UserSheet(this.extension, "fullscreen-sidebar.css")],
       ["workspaceTabs", new WorkspaceTabs()],
+      ["arcNewTab", new ArcNewTab(promoteSpaceTab)],
       ["reopenOnActivate", new ReopenOnActivate()],
       // На других платформах кнопки PiP и так стоят справа
       [
         "pipButtons",
-        new UserSheet(this.extension, "pip-buttons.css", AppConstants.platform == "macosx"),
+        Object.assign(
+          new UserSheet(this.extension, "pip-buttons.css", AppConstants.platform == "macosx"),
+          { excludes: "arcPip" }
+        ),
       ],
       ["arcPip", new ArcPip(this.extension, pipTopBar)],
     ]);
+
+    // Через about:config можно включить обе из пары: остаётся та, что выше в списке
+    for (const [name, feature] of this.#features) {
+      if (feature.excludes && this.#isEnabled(name) && this.#isEnabled(feature.excludes)) {
+        Services.prefs.setBoolPref(PREF_BRANCH + feature.excludes, false);
+      }
+    }
+
     Services.prefs.addObserver(PREF_BRANCH, this.#sync);
-    this.#sync();
+    this.#starting = true;
+    try {
+      this.#sync();
+    } finally {
+      this.#starting = false;
+    }
   }
 
   onShutdown(isAppShutdown) {
@@ -412,10 +559,10 @@ this.zenTweaks = class extends ExtensionAPI {
       return;
     }
     Services.prefs.removeObserver(PREF_BRANCH, this.#sync);
-    for (const name of this.#active) {
-      this.#features.get(name).disable();
+    // Настройки Zen не возвращаем: при обновлении расширение тут же запустится снова
+    for (const name of [...this.#active]) {
+      this.#deactivate(name, false);
     }
-    this.#active.clear();
     resourceProtocol().setSubstitution(this.#resourceHost, null);
   }
 
@@ -425,7 +572,7 @@ this.zenTweaks = class extends ExtensionAPI {
         getFeatures: async () =>
           Array.from(this.#features, ([name, feature]) => ({
             name,
-            enabled: isEnabled(name),
+            enabled: this.#isEnabled(name),
             available: feature.available,
           })),
         setFeature: async (name, enabled) => {
@@ -435,15 +582,118 @@ this.zenTweaks = class extends ExtensionAPI {
     };
   }
 
-  #sync = () => {
-    for (const [name, feature] of this.#features) {
-      const wanted = feature.available && isEnabled(name);
-      if (wanted && !this.#active.has(name)) {
-        feature.enable();
-        this.#active.add(name);
-      } else if (!wanted && this.#active.has(name)) {
-        feature.disable();
-        this.#active.delete(name);
+  #isEnabled(name) {
+    return Services.prefs.getBoolPref(
+      PREF_BRANCH + name,
+      this.#features.get(name).defaultEnabled ?? true
+    );
+  }
+
+  #wanted(name) {
+    return this.#features.get(name).available && this.#isEnabled(name);
+  }
+
+  #sync = (subject, topic, pref) => {
+    // Служебные настройки вроде <name>.saved доработки не включают
+    const changed = pref?.slice(PREF_BRANCH.length);
+    if (pref && !this.#features.has(changed)) {
+      return;
+    }
+    // Включили одну из пары — выключаем вторую, дальше доделает вложенный вызов
+    const partner = changed && this.#features.get(changed).excludes;
+    if (partner && this.#isEnabled(changed) && this.#isEnabled(partner)) {
+      Services.prefs.setBoolPref(PREF_BRANCH + partner, false);
+      return;
+    }
+    // Сначала выключение: взаимоисключающие доработки не работают одновременно
+    for (const name of this.#features.keys()) {
+      if (this.#active.has(name) && !this.#wanted(name)) {
+        this.#deactivate(name, true);
+      }
+    }
+    for (const name of this.#features.keys()) {
+      if (!this.#active.has(name) && this.#wanted(name)) {
+        this.#activate(name);
+      }
+    }
+  };
+
+  #activate(name) {
+    const feature = this.#features.get(name);
+    if (feature.zenPrefs && !this.#applyZenPrefs(name, feature.zenPrefs)) {
+      return;
+    }
+    feature.enable();
+    this.#active.add(name);
+  }
+
+  #deactivate(name, restoreZenPrefs) {
+    const feature = this.#features.get(name);
+    feature.disable();
+    this.#active.delete(name);
+    if (!feature.zenPrefs) {
+      return;
+    }
+    for (const pref of Object.keys(feature.zenPrefs.required)) {
+      Services.prefs.removeObserver(pref, this.#onZenPref);
+    }
+    const keep = this.#keepZenPrefs.delete(name);
+    if (restoreZenPrefs && !keep) {
+      this.#restoreZenPrefs(name);
+    }
+  }
+
+  // false, если доработку пришлось выключить: пользователь сам поменял её
+  // важную настройку, пока Zen Tweaks не работал
+  #applyZenPrefs(name, { required, extra }) {
+    const savedPref = `${PREF_BRANCH}${name}.saved`;
+    const values = { ...required, ...extra };
+    if (!Services.prefs.prefHasUserValue(savedPref)) {
+      const saved = Object.fromEntries(Object.keys(values).map(pref => [pref, readUserPref(pref)]));
+      Services.prefs.setStringPref(savedPref, JSON.stringify(saved));
+      this.#writeZenPrefs(values);
+    } else if (!this.#starting) {
+      // Пользователь снова включил доработку: переопределяем настройки заново
+      this.#writeZenPrefs(values);
+    } else if (Object.entries(required).some(([pref, value]) => readPref(pref) !== value)) {
+      Services.prefs.setBoolPref(PREF_BRANCH + name, false);
+      return false;
+    }
+    // На запуске всё совпало: значения уже наши, и прочие пользователь мог поправить
+    for (const pref of Object.keys(required)) {
+      Services.prefs.addObserver(pref, this.#onZenPref);
+    }
+    return true;
+  }
+
+  #restoreZenPrefs(name) {
+    const savedPref = `${PREF_BRANCH}${name}.saved`;
+    if (Services.prefs.prefHasUserValue(savedPref)) {
+      this.#writeZenPrefs(JSON.parse(Services.prefs.getStringPref(savedPref)));
+      Services.prefs.clearUserPref(savedPref);
+    }
+  }
+
+  #writeZenPrefs(values) {
+    this.#writingZenPrefs = true;
+    try {
+      for (const [pref, value] of Object.entries(values)) {
+        writePref(pref, value);
+      }
+    } finally {
+      this.#writingZenPrefs = false;
+    }
+  }
+
+  #onZenPref = (subject, topic, pref) => {
+    if (this.#writingZenPrefs) {
+      return;
+    }
+    for (const name of [...this.#active]) {
+      const required = this.#features.get(name).zenPrefs?.required;
+      if (required && pref in required && readPref(pref) !== required[pref]) {
+        this.#keepZenPrefs.add(name);
+        Services.prefs.setBoolPref(PREF_BRANCH + name, false);
       }
     }
   };

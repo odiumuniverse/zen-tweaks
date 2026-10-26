@@ -3,7 +3,7 @@
     "message": "Zen Tweaks"
   },
   "extensionDescription": {
-    "message": "Arc-like tweaks for Zen: the sidebar over fullscreen video, only this space's tabs in the address bar, a window on Cmd+Tab, PiP buttons on the right, Picture-in-Picture like in Arc."
+    "message": "Arc-like tweaks for Zen: the sidebar over fullscreen video, only this space's tabs in the address bar, Cmd+T like in Arc, a window on Cmd+Tab, PiP buttons on the right, Picture-in-Picture like in Arc."
   },
   "fullscreenSidebarTitle": {
     "message": "Sidebar over fullscreen video"
@@ -16,6 +16,12 @@
   },
   "workspaceTabsDescription": {
     "message": "“Switch to tab” no longer offers tabs from other spaces, so Enter opens the address in the current space instead of jumping away."
+  },
+  "arcNewTabTitle": {
+    "message": "Cmd+T like in Arc"
+  },
+  "arcNewTabDescription": {
+    "message": "In the bar Cmd+T opens, an open tab of this space that matches what you typed comes first, so Enter switches to it instead of searching. The bar opens empty, and new tabs go to the top of the list; a hidden New Tab button stays hidden. Turns off “Only this space's tabs in the address bar”. If you change these settings in Zen yourself, the tweak switches off."
   },
   "reopenOnActivateTitle": {
     "message": "Open a window on Cmd+Tab"
@@ -33,7 +39,7 @@
     "message": "Picture-in-Picture like in Arc"
   },
   "arcPipDescription": {
-    "message": "“Back to tab” in the top left, the site's domain in the middle, Minimize and Close in the top right; play/pause and 15-second seeking in the center; a thin progress bar at the bottom. Labels and the domain show up when they fit."
+    "message": "“Back to tab” in the top left, the site's domain in the middle, Minimize and Close in the top right; play/pause and 15-second seeking in the center; a thin progress bar at the bottom. Labels and the domain show up when they fit. Turns off “Close and minimize on the right”."
   },
   "pipMinimizeLabel": {
     "message": "Minimize"
