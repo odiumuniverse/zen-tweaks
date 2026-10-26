@@ -3,7 +3,7 @@
     "message": "Zen Tweaks"
   },
   "extensionDescription": {
-    "message": "Arc-like tweaks for Zen: the sidebar over fullscreen video, only this space's tabs in the address bar, a window on Cmd+Tab."
+    "message": "Arc-like tweaks for Zen: the sidebar over fullscreen video, only this space's tabs in the address bar, a window on Cmd+Tab, PiP buttons on the right."
   },
   "fullscreenSidebarTitle": {
     "message": "Sidebar over fullscreen video"
@@ -22,6 +22,12 @@
   },
   "reopenOnActivateDescription": {
     "message": "When Zen has no windows left, switching to it opens a new one, just like clicking its Dock icon."
+  },
+  "pipButtonsTitle": {
+    "message": "Close and minimize on the right in Picture-in-Picture"
+  },
+  "pipButtonsDescription": {
+    "message": "Close and minimize move to the right corner of the Picture-in-Picture window, and “Back to tab” moves to the left, as on Windows."
   },
   "macOnly": {
     "message": "Works on macOS only."

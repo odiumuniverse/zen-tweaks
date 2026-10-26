@@ -3,7 +3,7 @@
 /* global ExtensionAPI, ChromeUtils, Services, Cc, Ci, AppConstants */
 
 // Привилегированная часть Zen Tweaks: код идёт внутри Zen с правами самого
-// браузера. Обычному WebExtension ни одна из трёх доработок недоступна.
+// браузера. Обычному WebExtension ни одна из доработок недоступна.
 //
 // Каждая доработка включается настройкой extensions.zen-tweaks.<name>, по
 // умолчанию true. Страница настроек меняет их через setFeature, а наблюдатель
@@ -47,15 +47,13 @@ function styleSheetService() {
   );
 }
 
-// Панель поверх полноэкранного видео, правила лежат в fullscreen-sidebar.css
-class FullscreenSidebar {
-  available = true;
+// Доработка, которую целиком описывает CSS-файл расширения
+class UserSheet {
   #sheetURI;
 
-  constructor(extension) {
-    this.#sheetURI = Services.io.newURI(
-      extension.rootURI.resolve("fullscreen-sidebar.css")
-    );
+  constructor(extension, file, available = true) {
+    this.available = available;
+    this.#sheetURI = Services.io.newURI(extension.rootURI.resolve(file));
   }
 
   enable() {
@@ -157,9 +155,14 @@ this.zenTweaks = class extends ExtensionAPI {
 
   onStartup() {
     this.#features = new Map([
-      ["fullscreenSidebar", new FullscreenSidebar(this.extension)],
+      ["fullscreenSidebar", new UserSheet(this.extension, "fullscreen-sidebar.css")],
       ["workspaceTabs", new WorkspaceTabs()],
       ["reopenOnActivate", new ReopenOnActivate()],
+      // На других платформах кнопки PiP и так стоят справа
+      [
+        "pipButtons",
+        new UserSheet(this.extension, "pip-buttons.css", AppConstants.platform == "macosx"),
+      ],
     ]);
     Services.prefs.addObserver(PREF_BRANCH, this.#sync);
     this.#sync();

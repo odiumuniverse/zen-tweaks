@@ -7,6 +7,7 @@ Arc-like tweaks for [Zen Browser](https://zen-browser.app). Each one can be swit
 - **Sidebar over fullscreen video.** In compact mode, move the pointer to the left edge of a fullscreen video and the sidebar slides out. Zen normally hides it until you leave fullscreen.
 - **Only this space's tabs in the address bar.** “Switch to tab” stops offering tabs from other spaces, so typing an address that is open elsewhere opens it in the current space instead of jumping there.
 - **Open a window on Cmd+Tab** (macOS). When Zen has no windows left, switching to it opens a new one, the way clicking its Dock icon does.
+- **Close and minimize on the right in Picture-in-Picture** (macOS). Close and minimize move to the right corner of the Picture-in-Picture window, and “Back to tab” moves to the left, as on Windows.
 
 ## Why it needs two settings
 
@@ -31,4 +32,4 @@ The toggles live in `about:addons` → Zen Tweaks → Options. They are stored a
 
 ## Compatibility
 
-Zen Tweaks hooks into Zen's internals (`UrlbarMuxerStandard`, compact-mode attributes, `mac_app_activate`), so a large Zen update can break it. It is written against Zen 1.23.4b.
+Zen Tweaks hooks into Zen's internals (`UrlbarMuxerStandard`, compact-mode attributes, `mac_app_activate`, the Picture-in-Picture player markup), so a large Zen update can break it. It is written against Zen 1.23.4b.

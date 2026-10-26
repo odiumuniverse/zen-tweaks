@@ -1,0 +1,37 @@
+/*
+ * Zen: put Close and Minimize in the right corner of the Picture-in-Picture
+ * window and “Back to tab” in the left one, as on Windows and Linux.
+ *
+ * On macOS player.xhtml marks the buttons with mac="true", and player.css
+ * mirrors them by that attribute. Tooltips are mirrored too, otherwise they
+ * would stick out past the window edge.
+ *
+ * parent.js registers this file as a user sheet, so every declaration is
+ * !important: otherwise the rules would lose to player.css.
+ */
+@-moz-document url("chrome://global/content/pictureinpicture/player.xhtml") {
+  #close[mac="true"] {
+    left: auto !important;
+    right: 10px !important;
+  }
+
+  #minimize[mac="true"] {
+    left: auto !important;
+    right: 50px !important;
+  }
+
+  #unpip[mac="true"] {
+    right: auto !important;
+    left: 10px !important;
+  }
+
+  #close[mac="true"]:is(:hover, :focus-visible)::after {
+    float: right !important;
+    transform: translateX(1em) !important;
+  }
+
+  #unpip[mac="true"]:is(:hover, :focus-visible)::after {
+    float: left !important;
+    transform: translateX(-1em) !important;
+  }
+}
