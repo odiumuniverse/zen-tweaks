@@ -1,0 +1,10 @@
+version: 2
+updates:
+  # Других зависимостей нет: расширение на чистом JS без npm-пакетов
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
