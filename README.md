@@ -29,8 +29,7 @@ Only want the sidebar over fullscreen video? It is also a plain CSS mod, see [`m
 
 ## Development
 
-- `./build.sh` packs `extension/` into `/tmp/zen-tweaks.xpi`. Install it from `about:addons` → gear → **Install Add-on From File**.
-- To release, bump `version` in `extension/manifest.json`, commit, and push a matching tag: `git tag v1.0.1 && git push origin v1.0.1`. The [release workflow](.github/workflows/release.yml) builds the package, publishes the install page and `updates.json` to GitHub Pages, and creates a GitHub release.
+`./build.sh` packs `extension/` into `/tmp/zen-tweaks.xpi`. Install it from `about:addons` → gear → **Install Add-on From File**.
 
 ## Compatibility
 
