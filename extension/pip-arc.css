@@ -1,0 +1,263 @@
+/*
+ * Zen: Picture-in-Picture laid out like Arc. “Back to tab” sits in the top
+ * left corner, Minimize and Close in the top right, the tab's domain in the
+ * middle; play/pause and 15-second seek buttons in the center; a thin
+ * progress bar at the bottom. Arc has no timestamp, volume, speed, subtitles
+ * or fullscreen buttons, so they are hidden; their shortcuts still work.
+ *
+ * parent.js marks the player with zen-tweaks-arc-pip, adds the icons as
+ * inline SVG (the player's CSP blocks data: images) and toggles
+ * zen-tweaks-pip-labels / zen-tweaks-pip-origin when the labels and the
+ * domain fit. It is a user sheet, so every declaration is !important,
+ * otherwise the rules would lose to player.css and pip-buttons.css.
+ */
+@-moz-document url("chrome://global/content/pictureinpicture/player.xhtml") {
+  :root[zen-tweaks-arc-pip] {
+    --zen-tweaks-pip-pad: clamp(8px, 4vmin, 16px);
+    --zen-tweaks-pip-btn: clamp(24px, 9vmin, 32px);
+    --zen-tweaks-pip-icon: clamp(14px, 5vmin, 18px);
+    --zen-tweaks-pip-font: clamp(11px, 3.6vmin, 14px);
+    --zen-tweaks-pip-play: clamp(28px, 22vmin, 80px);
+    --zen-tweaks-pip-seek: clamp(22px, 15vmin, 56px);
+    /* parent.js reads these two, keep them in plain px */
+    --zen-tweaks-pip-gap: 8px;
+    --zen-tweaks-pip-label-pad: 10px;
+  }
+
+  /* Arc has no tooltips: the labels say it all */
+  :root[zen-tweaks-arc-pip] .control-item::after {
+    display: none !important;
+  }
+
+  :root[zen-tweaks-arc-pip] :is(
+      #timestamp,
+      #audio,
+      #audio-scrubber,
+      #playbackRate,
+      #closed-caption,
+      #fullscreen,
+      #settings,
+      #playbackRateSettings,
+      .start-controls,
+      .end-controls
+    ) {
+    display: none !important;
+  }
+
+  /*
+   * The bottom gradient becomes a dim layer over the whole video. Without
+   * explicit z-indexes the video, painted in its own process, ends up above
+   * it; the controls go one level higher.
+   */
+  :root[zen-tweaks-arc-pip] #controls-bottom-gradient {
+    z-index: 1 !important;
+    inset: calc(-1 * var(--resize-margin)) !important;
+    width: auto !important;
+    height: auto !important;
+    margin: 0 !important;
+    background: rgba(0, 0, 0, 0.35) !important;
+  }
+
+  :root[zen-tweaks-arc-pip] :is(#unpip, #zen-tweaks-pip-right, #zen-tweaks-pip-origin, #controls-bottom) {
+    z-index: 2 !important;
+  }
+
+  :root[zen-tweaks-arc-pip] :is(#unpip, #minimize, #close, #playpause, #seekBackward, #seekForward) {
+    background-image: none !important;
+    background-color: transparent !important;
+    color: white !important;
+  }
+
+  :root[zen-tweaks-arc-pip] .zen-tweaks-pip-icon {
+    flex: none;
+    width: var(--zen-tweaks-pip-icon);
+    height: var(--zen-tweaks-pip-icon);
+    /* player.js picks the action by event.target.id, clicks must hit the button */
+    pointer-events: none;
+  }
+
+  /* Top bar */
+
+  :root[zen-tweaks-arc-pip] :is(#unpip, #minimize, #close) {
+    display: inline-flex !important;
+    align-items: center !important;
+    height: var(--zen-tweaks-pip-btn) !important;
+    min-width: var(--zen-tweaks-pip-btn) !important;
+    max-width: none !important;
+    /* Without a label the button is a square with the icon in the middle */
+    padding: 0 calc((var(--zen-tweaks-pip-btn) - var(--zen-tweaks-pip-icon)) / 2) !important;
+    border-radius: calc(var(--zen-tweaks-pip-btn) / 2) !important;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5)) !important;
+  }
+
+  :root[zen-tweaks-arc-pip] :is(#unpip, #minimize, #close):is(:hover, :focus-visible) {
+    background-color: rgba(255, 255, 255, 0.18) !important;
+  }
+
+  :root[zen-tweaks-arc-pip] #unpip {
+    width: var(--zen-tweaks-pip-btn) !important;
+    top: var(--zen-tweaks-pip-pad) !important;
+    left: var(--zen-tweaks-pip-pad) !important;
+    right: auto !important;
+  }
+
+  :root[zen-tweaks-arc-pip] #zen-tweaks-pip-right {
+    position: absolute;
+    top: var(--zen-tweaks-pip-pad);
+    right: var(--zen-tweaks-pip-pad);
+    display: flex;
+    gap: var(--zen-tweaks-pip-gap);
+  }
+
+  :root[zen-tweaks-arc-pip] :is(#minimize, #close) {
+    position: static !important;
+    width: auto !important;
+  }
+
+  /* Hidden labels keep max-width: 0, so parent.js can still measure them */
+  :root[zen-tweaks-arc-pip] .zen-tweaks-pip-label {
+    max-width: 0;
+    overflow: hidden;
+    opacity: 0;
+    white-space: nowrap;
+    font: 600 var(--zen-tweaks-pip-font) / 1 system-ui, sans-serif;
+    pointer-events: none;
+    transition:
+      max-width 160ms ease,
+      opacity 160ms linear;
+  }
+
+  /* The two paddings add up to --zen-tweaks-pip-label-pad */
+  :root[zen-tweaks-arc-pip][zen-tweaks-pip-labels] .zen-tweaks-pip-label {
+    max-width: 20em;
+    opacity: 1;
+    padding-inline: 6px 4px;
+  }
+
+  :root[zen-tweaks-arc-pip] #zen-tweaks-pip-origin {
+    position: absolute;
+    top: var(--zen-tweaks-pip-pad);
+    left: 50%;
+    translate: -50%;
+    height: var(--zen-tweaks-pip-btn);
+    white-space: nowrap;
+    color: white;
+    font: 600 var(--zen-tweaks-pip-font) system-ui, sans-serif;
+    /* After font: the shorthand resets line-height */
+    line-height: var(--zen-tweaks-pip-btn);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+    visibility: hidden;
+    /* .control-item turns dragging off, but the window should move by its domain */
+    -moz-window-dragging: drag !important;
+  }
+
+  :root[zen-tweaks-arc-pip][zen-tweaks-pip-origin] #zen-tweaks-pip-origin {
+    visibility: visible;
+  }
+
+  /* Center: seek back, play/pause, seek forward */
+
+  :root[zen-tweaks-arc-pip] .controls-bottom-lower {
+    height: 0 !important;
+    margin: 0 !important;
+  }
+
+  :root[zen-tweaks-arc-pip] .center-controls {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    translate: -50% -50% !important;
+    grid-template-columns: auto auto auto !important;
+    grid-template-areas: "seekbackward playpause seekforward" !important;
+    align-items: center !important;
+    gap: clamp(8px, 7vmin, 40px) !important;
+  }
+
+  :root[zen-tweaks-arc-pip] .center-controls .control-button {
+    min-width: 0 !important;
+    max-width: none !important;
+    padding: 0 !important;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.45)) !important;
+    transition:
+      opacity 160ms linear,
+      scale 120ms ease !important;
+  }
+
+  :root[zen-tweaks-arc-pip] .center-controls .control-button:hover {
+    scale: 1.08;
+  }
+
+  :root[zen-tweaks-arc-pip] .center-controls .zen-tweaks-pip-icon {
+    width: 100%;
+    height: 100%;
+  }
+
+  :root[zen-tweaks-arc-pip] #playpause {
+    width: var(--zen-tweaks-pip-play) !important;
+    height: var(--zen-tweaks-pip-play) !important;
+  }
+
+  :root[zen-tweaks-arc-pip] #controls.playing .zen-tweaks-pip-play,
+  :root[zen-tweaks-arc-pip] #controls:not(.playing) .zen-tweaks-pip-pause {
+    display: none;
+  }
+
+  /* player.css hides seeking in windows under 300px wide, Arc keeps it */
+  :root[zen-tweaks-arc-pip] :is(#seekBackward, #seekForward):not([hidden]) {
+    display: block !important;
+    width: var(--zen-tweaks-pip-seek) !important;
+    height: var(--zen-tweaks-pip-seek) !important;
+  }
+
+  /* Bottom: a thin progress bar that grows under the pointer */
+
+  :root[zen-tweaks-arc-pip] #controls-bottom {
+    bottom: var(--zen-tweaks-pip-pad) !important;
+  }
+
+  :root[zen-tweaks-arc-pip] .controls-bottom-upper {
+    width: calc(100% - 2 * var(--zen-tweaks-pip-pad)) !important;
+    height: auto !important;
+    margin: 0 var(--zen-tweaks-pip-pad) !important;
+  }
+
+  :root[zen-tweaks-arc-pip] .scrubber-no-drag {
+    display: grid !important;
+    margin: 0 !important;
+  }
+
+  :root[zen-tweaks-arc-pip] #scrubber {
+    padding: 6px 0 !important;
+  }
+
+  :root[zen-tweaks-arc-pip] #scrubber::-moz-range-track {
+    background-color: rgba(255, 255, 255, 0.3) !important;
+  }
+
+  :root[zen-tweaks-arc-pip] #scrubber::-moz-range-thumb {
+    width: 8px !important;
+    height: 8px !important;
+    border: 0 !important;
+    background-color: white !important;
+    transition: scale 120ms ease !important;
+  }
+
+  :root[zen-tweaks-arc-pip] #scrubber,
+  :root[zen-tweaks-arc-pip] #scrubber::-moz-range-track,
+  :root[zen-tweaks-arc-pip] #scrubber::-moz-range-progress {
+    height: 4px !important;
+    border-radius: 2px !important;
+  }
+
+  :root[zen-tweaks-arc-pip] #scrubber:hover,
+  :root[zen-tweaks-arc-pip] #scrubber:hover::-moz-range-track,
+  :root[zen-tweaks-arc-pip] #scrubber:hover::-moz-range-progress {
+    height: 6px !important;
+    border-radius: 3px !important;
+  }
+
+  :root[zen-tweaks-arc-pip] #scrubber:hover::-moz-range-thumb {
+    scale: 1.5;
+  }
+}

@@ -8,6 +8,7 @@ Arc-like tweaks for [Zen Browser](https://zen-browser.app). Each one can be swit
 - **Only this space's tabs in the address bar.** “Switch to tab” stops offering tabs from other spaces, so typing an address that is open elsewhere opens it in the current space instead of jumping there.
 - **Open a window on Cmd+Tab** (macOS). When Zen has no windows left, switching to it opens a new one, the way clicking its Dock icon does.
 - **Close and minimize on the right in Picture-in-Picture** (macOS). Close and minimize move to the right corner of the Picture-in-Picture window, and “Back to tab” moves to the left, as on Windows.
+- **Picture-in-Picture like in Arc.** “Back to tab” in the top left corner, the site's domain in the middle, Minimize and Close in the top right; play/pause and 15-second seeking in the center; a thin progress bar at the bottom. The button labels and the domain show up only when they fit, so they never cover the buttons. Timestamp, volume, speed, subtitles and fullscreen buttons are hidden, as in Arc; their shortcuts still work. Overrides the previous tweak while it is on.
 
 ## Why it needs two settings
 
@@ -30,6 +31,8 @@ The toggles live in `about:addons` → Zen Tweaks → Options. They are stored a
 
 `./build.sh` packs `extension/` into `/tmp/zen-tweaks.xpi`. Install it from `about:addons` → gear → **Install Add-on From File**.
 
+`npm test` runs the unit tests in `test/` with Node's built-in runner; there are no dependencies to install.
+
 ## Compatibility
 
-Zen Tweaks hooks into Zen's internals (`UrlbarMuxerStandard`, compact-mode attributes, `mac_app_activate`, the Picture-in-Picture player markup), so a large Zen update can break it. It is written against Zen 1.23.4b.
+Zen Tweaks hooks into Zen's internals (`UrlbarMuxerStandard`, compact-mode attributes, `mac_app_activate`, the Picture-in-Picture player markup and its `PictureInPicture` module), so a large Zen update can break it. It is written against Zen 1.23.4b.
