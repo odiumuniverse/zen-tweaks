@@ -1,0 +1,95 @@
+:root {
+  color-scheme: light dark;
+  --text: light-dark(#1c1b22, #fbfbfe);
+  --muted: light-dark(#5b5b66, #bfbfc9);
+  --divider: light-dark(#e0e0e6, #3a3944);
+  --track: light-dark(#cfcfd8, #52525e);
+  --accent: AccentColor;
+  --knob: #fff;
+}
+
+body {
+  margin: 0;
+  padding: 4px 0;
+  font: menu;
+  font-size: 13px;
+  color: var(--text);
+  background: transparent;
+}
+
+.feature {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--divider);
+  cursor: pointer;
+}
+
+.feature:last-child {
+  border-bottom: none;
+}
+
+.feature:has(.toggle:disabled) {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.title {
+  font-weight: 600;
+}
+
+.description {
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.toggle {
+  appearance: none;
+  flex: none;
+  position: relative;
+  width: 32px;
+  height: 18px;
+  margin: 0;
+  border-radius: 9px;
+  background: var(--track);
+  transition: background 0.15s ease;
+  cursor: inherit;
+}
+
+.toggle::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--knob);
+  transition: translate 0.15s ease;
+}
+
+.toggle:checked {
+  background: var(--accent);
+}
+
+.toggle:checked::before {
+  translate: 14px;
+}
+
+.toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.error {
+  color: var(--muted);
+  line-height: 1.4;
+}

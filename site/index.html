@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Zen Tweaks</title>
+  <meta name="description" content="Arc-like tweaks for Zen Browser: the sidebar over fullscreen video, only this space's tabs in the address bar, a window on Cmd+Tab.">
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: light-dark(#f7f7f8, #141416);
+      --surface: light-dark(#ffffff, #1d1d21);
+      --text: light-dark(#1c1b22, #ececf1);
+      --muted: light-dark(#5b5b66, #a3a3ad);
+      --border: light-dark(#e3e3e8, #2c2c33);
+      /* Ближе к фирменному #F76F53 Zen, но с читаемым текстом на кнопке */
+      --accent: light-dark(#d4513b, #f76f53);
+      --accent-text: light-dark(#fff, #1a0f0c);
+      --code-bg: light-dark(#f0f0f3, #26262c);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    }
+
+    main {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 56px 16px 72px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 36px;
+      letter-spacing: -0.02em;
+    }
+
+    .lead {
+      margin: 0 0 40px;
+      color: var(--muted);
+      font-size: 18px;
+    }
+
+    h2 {
+      margin: 48px 0 16px;
+      font-size: 20px;
+    }
+
+    .features {
+      display: grid;
+      gap: 12px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .features li {
+      padding: 16px 18px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--surface);
+    }
+
+    .features strong {
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .features span {
+      color: var(--muted);
+    }
+
+    ol.steps {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      counter-reset: step;
+    }
+
+    ol.steps > li {
+      position: relative;
+      padding: 0 0 28px 44px;
+      counter-increment: step;
+    }
+
+    ol.steps > li::before {
+      content: counter(step);
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: var(--accent-text);
+      font-weight: 600;
+      font-size: 14px;
+      line-height: 28px;
+      text-align: center;
+    }
+
+    ol.steps p {
+      margin: 0 0 12px;
+    }
+
+    .pref {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--surface);
+    }
+
+    code {
+      padding: 1px 6px;
+      border-radius: 6px;
+      background: var(--code-bg);
+      font: 14px ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .pref code {
+      flex: 1;
+      min-width: 0;
+      padding: 0;
+      background: none;
+      overflow-wrap: anywhere;
+    }
+
+    .pref .value {
+      color: var(--muted);
+      font: 14px ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    button.copy {
+      flex: none;
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    button.copy:hover {
+      border-color: var(--muted);
+    }
+
+    .install {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 22px 12px 18px;
+      border-radius: 10px;
+      background: var(--accent);
+      color: var(--accent-text);
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    .install:hover {
+      filter: brightness(1.08);
+    }
+
+    .install svg {
+      width: 22px;
+      height: 22px;
+      fill: currentColor;
+    }
+
+    .note {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    a {
+      color: var(--accent);
+    }
+
+    footer {
+      margin-top: 56px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Zen Tweaks</h1>
+    <p class="lead">Arc-like tweaks for Zen Browser. Turn each one on or off on the add-on's options page.</p>
+
+    <ul class="features">
+      <li>
+        <strong>Sidebar over fullscreen video</strong>
+        <span>In compact mode, move the pointer to the left edge of a fullscreen video and the sidebar slides out.</span>
+      </li>
+      <li>
+        <strong>Only this space's tabs in the address bar</strong>
+        <span>“Switch to tab” stops offering tabs from other spaces, so an address opens in the space you are in.</span>
+      </li>
+      <li>
+        <strong>Open a window on Cmd+Tab</strong>
+        <span>On macOS, switching to Zen with no windows left opens a new one, like clicking its Dock icon.</span>
+      </li>
+    </ul>
+
+    <h2>Install</h2>
+    <ol class="steps">
+      <li>
+        <p>Type <code>about:config</code> in the address bar, accept the warning, and set these two settings:</p>
+        <div class="pref">
+          <code>xpinstall.signatures.required</code>
+          <span class="value">false</span>
+          <button class="copy" data-copy="xpinstall.signatures.required">Copy</button>
+        </div>
+        <div class="pref">
+          <code>extensions.experiments.enabled</code>
+          <span class="value">true</span>
+          <button class="copy" data-copy="extensions.experiments.enabled">Copy</button>
+        </div>
+        <p class="note">Zen Tweaks changes Zen's own interface, which regular add-ons can't do, so addons.mozilla.org won't sign it. With the first setting off, Zen accepts unsigned add-ons, but it still asks before each install.</p>
+      </li>
+      <li>
+        <p>Restart Zen.</p>
+      </li>
+      <li>
+        <p>Install the add-on. If Zen says it prevented this site from installing software, choose <strong>Continue to Installation</strong>, then <strong>Add</strong>.</p>
+        <a class="install" href="zen-tweaks.xpi">
+          <!-- Логотип Zen Browser из Simple Icons (CC0) -->
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M24 12c0 6.627-5.373 12-12 12S0 18.627 0 12 5.373 0 12 0s12 5.373 12 12zm-12 9.846c5.438 0 9.846-4.408 9.846-9.846S17.438 2.154 12 2.154 2.154 6.562 2.154 12 6.562 21.846 12 21.846zM20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0zm-8 6.462a6.462 6.462 0 1 0 0-12.924 6.462 6.462 0 0 0 0 12.924zm0-1.847a4.615 4.615 0 1 0 0-9.23 4.615 4.615 0 0 0 0 9.23zM15.692 12a3.692 3.692 0 1 1-7.384 0 3.692 3.692 0 0 1 7.384 0z"/></svg>
+          Install in Zen
+        </a>
+      </li>
+    </ol>
+
+    <p class="note">Updates arrive on their own. To pick which tweaks are on, open <code>about:addons</code>, then Zen Tweaks, then Options.</p>
+
+    <footer>
+      <a href="https://github.com/odiumuniverse/zen-tweaks">Source on GitHub</a> · MPL-2.0
+    </footer>
+  </main>
+
+  <script>
+    for (const button of document.querySelectorAll("button.copy")) {
+      button.addEventListener("click", async () => {
+        await navigator.clipboard.writeText(button.dataset.copy);
+        button.textContent = "Copied";
+        setTimeout(() => (button.textContent = "Copy"), 1500);
+      });
+    }
+  </script>
+</body>
+</html>

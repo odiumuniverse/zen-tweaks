@@ -1,0 +1,29 @@
+{
+  "manifest_version": 2,
+  "name": "__MSG_extensionName__",
+  "version": "1.0.0",
+  "description": "__MSG_extensionDescription__",
+  "default_locale": "en",
+  "homepage_url": "https://github.com/odiumuniverse/zen-tweaks",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "zen-tweaks@odiumuniverse",
+      "update_url": "https://odiumuniverse.github.io/zen-tweaks/updates.json"
+    }
+  },
+  "options_ui": {
+    "page": "options/options.html",
+    "browser_style": false
+  },
+  "experiment_apis": {
+    "zenTweaks": {
+      "schema": "schema.json",
+      "parent": {
+        "scopes": ["addon_parent"],
+        "script": "parent.js",
+        "events": ["startup"],
+        "paths": [["zenTweaks"]]
+      }
+    }
+  }
+}

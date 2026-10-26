@@ -1,0 +1,32 @@
+{
+  "extensionName": {
+    "message": "Zen Tweaks"
+  },
+  "extensionDescription": {
+    "message": "Доработки Zen в духе Arc: панель поверх полноэкранного видео, вкладки только своего пространства в адресной строке, окно по Cmd+Tab."
+  },
+  "fullscreenSidebarTitle": {
+    "message": "Панель поверх полноэкранного видео"
+  },
+  "fullscreenSidebarDescription": {
+    "message": "В компактном режиме панель выезжает, когда подводишь курсор к левому краю полноэкранного видео."
+  },
+  "workspaceTabsTitle": {
+    "message": "Только вкладки своего пространства в адресной строке"
+  },
+  "workspaceTabsDescription": {
+    "message": "«Перейти на вкладку» больше не предлагает вкладки других пространств, и Enter открывает адрес в текущем, а не перебрасывает в чужое."
+  },
+  "reopenOnActivateTitle": {
+    "message": "Открывать окно по Cmd+Tab"
+  },
+  "reopenOnActivateDescription": {
+    "message": "Если у Zen не осталось окон, переключение на него открывает новое, как щелчок по значку в Dock."
+  },
+  "macOnly": {
+    "message": "Работает только на macOS."
+  },
+  "loadError": {
+    "message": "Zen Tweaks не достучался до браузера. Включи extensions.experiments.enabled в about:config и перезапусти Zen."
+  }
+}

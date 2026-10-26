@@ -1,0 +1,44 @@
+[
+  {
+    "namespace": "zenTweaks",
+    "description": "Привилегированные доработки Zen и их переключатели для страницы настроек",
+    "types": [
+      {
+        "id": "FeatureName",
+        "type": "string",
+        "enum": ["fullscreenSidebar", "workspaceTabs", "reopenOnActivate"]
+      },
+      {
+        "id": "Feature",
+        "type": "object",
+        "properties": {
+          "name": { "$ref": "FeatureName" },
+          "enabled": { "type": "boolean" },
+          "available": {
+            "type": "boolean",
+            "description": "false, если доработка не работает на этой платформе"
+          }
+        }
+      }
+    ],
+    "functions": [
+      {
+        "name": "getFeatures",
+        "type": "function",
+        "description": "Доработки и их состояние",
+        "async": true,
+        "parameters": []
+      },
+      {
+        "name": "setFeature",
+        "type": "function",
+        "description": "Включает или выключает доработку сразу, без перезапуска",
+        "async": true,
+        "parameters": [
+          { "name": "name", "$ref": "FeatureName" },
+          { "name": "enabled", "type": "boolean" }
+        ]
+      }
+    ]
+  }
+]

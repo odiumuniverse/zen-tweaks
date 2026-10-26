@@ -1,0 +1,32 @@
+{
+  "extensionName": {
+    "message": "Zen Tweaks"
+  },
+  "extensionDescription": {
+    "message": "Arc-like tweaks for Zen: the sidebar over fullscreen video, only this space's tabs in the address bar, a window on Cmd+Tab."
+  },
+  "fullscreenSidebarTitle": {
+    "message": "Sidebar over fullscreen video"
+  },
+  "fullscreenSidebarDescription": {
+    "message": "In compact mode, the sidebar slides out when you move the pointer to the left edge of a fullscreen video."
+  },
+  "workspaceTabsTitle": {
+    "message": "Only this space's tabs in the address bar"
+  },
+  "workspaceTabsDescription": {
+    "message": "“Switch to tab” no longer offers tabs from other spaces, so Enter opens the address in the current space instead of jumping away."
+  },
+  "reopenOnActivateTitle": {
+    "message": "Open a window on Cmd+Tab"
+  },
+  "reopenOnActivateDescription": {
+    "message": "When Zen has no windows left, switching to it opens a new one, just like clicking its Dock icon."
+  },
+  "macOnly": {
+    "message": "Works on macOS only."
+  },
+  "loadError": {
+    "message": "Zen Tweaks can't reach the browser. Set extensions.experiments.enabled to true in about:config and restart Zen."
+  }
+}

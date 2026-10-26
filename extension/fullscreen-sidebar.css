@@ -1,0 +1,61 @@
+/*
+ * Zen: в полноэкранном видео боковая панель выезжает при наведении
+ * на левый край, как в Arc.
+ *
+ * В полноэкранном видео (DOM fullscreen) Zen прячет #navigator-toolbox
+ * через visibility: collapse и отключает правила компактного режима.
+ * Атрибут zen-has-hover ZenCompactMode.mjs ставит и в этом режиме, поэтому
+ * здесь панель снова видна, задвинута за левый край и выезжает по атрибуту.
+ *
+ * parent.js регистрирует файл как USER_SHEET: без !important его правила
+ * проигрывают стилям Zen и inline margin-top, которым Firefox задвигает
+ * панель вверх.
+ */
+:root[zen-compact-mode="true"][inDOMFullscreen="true"]:not([zen-right-side="true"]) #navigator-toolbox {
+  --fs-sidebar-float: 8px;
+
+  visibility: visible !important;
+  position: fixed !important;
+  z-index: 10 !important;
+  top: var(--fs-sidebar-float) !important;
+  bottom: var(--fs-sidebar-float) !important;
+  left: 0 !important;
+  width: auto !important;
+  max-width: none !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 0 var(--fs-sidebar-float) !important;
+  /* На экране остаётся прозрачный правый padding: на нём ловится наведение */
+  translate: calc(-100% + var(--fs-sidebar-float)) !important;
+  transition: translate 0.15s ease !important;
+
+  & #titlebar {
+    position: relative !important;
+    visibility: hidden !important;
+    padding: var(--zen-toolbox-padding, 6px) !important;
+    transition: visibility 0.15s !important;
+  }
+
+  & #titlebar .zen-toolbar-background {
+    display: flex !important;
+  }
+}
+
+:root[zen-compact-mode="true"][inDOMFullscreen="true"][zen-sidebar-expanded="true"]:not([zen-right-side="true"]) #navigator-toolbox #titlebar {
+  width: var(--zen-sidebar-width) !important;
+}
+
+/* Панель выехала */
+:root[zen-compact-mode="true"][inDOMFullscreen="true"]:not([zen-right-side="true"]) #navigator-toolbox:is(
+  [zen-has-hover],
+  [has-popup-menu],
+  [movingtab],
+  [zen-user-show]
+) {
+  translate: none !important;
+
+  & #titlebar {
+    visibility: visible !important;
+    transition: none !important;
+  }
+}
