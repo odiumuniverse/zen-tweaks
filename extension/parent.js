@@ -15,7 +15,8 @@
 // при включении запоминает прежние значения в extensions.zen-tweaks.<name>.saved
 // и ставит свои, при выключении возвращает прежние. Если пользователь сам
 // меняет в Zen настройку из zenPrefs.required, доработка выключается, а
-// остальные её настройки Zen остаются как есть.
+// остальные её настройки Zen остаются как есть. Доработка с conflicts() не
+// включается, пока он возвращает true.
 
 const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
@@ -34,7 +35,11 @@ const PREF_BRANCH = "extensions.zen-tweaks.";
 const REOPEN_DELAY_MS = 300;
 
 const APP_ACTIVATE_TOPIC = "mac_app_activate";
-const FIRST_WINDOW_TOPIC = "browser-delayed-startup-finished";
+// Окно браузера достроено: gURLBar и горячие клавиши Zen на месте
+const WINDOW_READY_TOPIC = "browser-delayed-startup-finished";
+
+// Набор, куда Zen складывает горячие клавиши из своих настроек
+const ZEN_KEYSET_ID = "zenKeyset";
 
 const PIP_WINDOW_TYPE = "Toolkit:PictureInPicture";
 // Zen перематывает на 5 секунд за сообщение, Arc — на 15
@@ -124,6 +129,13 @@ function hasBrowserWindows() {
   return false;
 }
 
+// Окна браузера, в которых уже есть gURLBar и горячие клавиши Zen
+function readyBrowserWindows() {
+  return Array.from(Services.wm.getEnumerator("navigator:browser")).filter(
+    win => !win.closed && win.gBrowserInit?.delayedStartupFinished
+  );
+}
+
 function styleSheetService() {
   return Cc["@mozilla.org/content/style-sheet-service;1"].getService(
     Ci.nsIStyleSheetService
@@ -152,6 +164,71 @@ class UserSheet {
       sss.unregisterSheet(this.#sheetURI, sss.USER_SHEET);
     }
   }
+}
+
+// Панель поверх полноэкранного видео: выдвигает её fullscreen-sidebar.css.
+// Вкладка выбирается уже на нажатии кнопки мыши, и Zen сразу выходит из
+// полноэкранного режима: панель уезжает, а кнопка ещё зажата. Тогда малейшее
+// движение превращает щелчок в перетаскивание вкладки, а вкладку, брошенную
+// у края страницы, Zen ставит рядом в split view. Поэтому перетаскивание,
+// начатое нажатием в полноэкранном режиме, отменяется.
+class FullscreenSidebar {
+  available = true;
+  #sheet;
+  #undo = new Map();
+
+  constructor(extension) {
+    this.#sheet = new UserSheet(extension, "fullscreen-sidebar.css");
+  }
+
+  enable() {
+    this.#sheet.enable();
+    Services.obs.addObserver(this.#onWindow, WINDOW_READY_TOPIC);
+    for (const win of readyBrowserWindows()) {
+      this.#onWindow(win);
+    }
+  }
+
+  disable() {
+    Services.obs.removeObserver(this.#onWindow, WINDOW_READY_TOPIC);
+    for (const undo of this.#undo.values()) {
+      undo();
+    }
+    this.#undo.clear();
+    this.#sheet.disable();
+  }
+
+  #onWindow = win => {
+    if (this.#undo.has(win)) {
+      return;
+    }
+    const root = win.document.documentElement;
+    // Каждое нажатие перезаписывает флаг, так что потерянный mouseup его не залипит
+    let pressedInFullscreen = false;
+    const onMouseDown = () => {
+      pressedInFullscreen = root.getAttribute("inDOMFullscreen") == "true";
+    };
+    const onMouseUp = () => {
+      pressedInFullscreen = false;
+    };
+    // Вкладки начинают перетаскивание в dragstart контейнера, окно ловит его раньше
+    const onDragStart = event => {
+      if (pressedInFullscreen && event.target.closest("#navigator-toolbox")) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    win.addEventListener("mousedown", onMouseDown, true);
+    win.addEventListener("mouseup", onMouseUp, true);
+    win.addEventListener("dragstart", onDragStart, true);
+
+    this.#undo.set(win, () => {
+      win.removeEventListener("mousedown", onMouseDown, true);
+      win.removeEventListener("mouseup", onMouseUp, true);
+      win.removeEventListener("dragstart", onDragStart, true);
+    });
+    win.addEventListener("unload", () => this.#undo.delete(win), { once: true });
+  };
 }
 
 // Две доработки правят результаты адресной строки до сортировки. sort
@@ -272,6 +349,113 @@ class ArcNewTab {
   };
 }
 
+// Ctrl+J и Ctrl+K двигают выделение в списке адресной строки, как встроенные
+// Ctrl+N и Ctrl+P. Клавиши строки разбирает handleKeyNavigation её
+// контроллера; он подменяется в прототипе, общем для адресной строки и поля
+// поиска. Модуль контроллера Zen грузит в каждое окно отдельно, поэтому и
+// подмена в каждом окне своя. На Windows и Linux Ctrl+J и Ctrl+K — загрузки
+// и поиск, там доработка не нужна.
+//
+// Если в горячих клавишах Zen на Ctrl+J или Ctrl+K что-то назначено,
+// доработка выключается: иначе при открытом списке она перебивала бы клавишу.
+class UrlbarKeys {
+  available = AppConstants.platform == "macosx";
+  defaultEnabled = false;
+  #keyStep;
+  #keysTaken;
+  #switchOff;
+  #undo = new Map();
+
+  constructor({ urlbarKeyStep, urlbarKeysTaken }, switchOff) {
+    this.#keyStep = urlbarKeyStep;
+    this.#keysTaken = urlbarKeysTaken;
+    this.#switchOff = switchOff;
+  }
+
+  // Пока клавишу занимает Zen, доработка не включается
+  conflicts() {
+    return readyBrowserWindows().some(win => this.#taken(win));
+  }
+
+  enable() {
+    Services.obs.addObserver(this.#onWindow, WINDOW_READY_TOPIC);
+    for (const win of readyBrowserWindows()) {
+      this.#patch(win);
+    }
+  }
+
+  disable() {
+    Services.obs.removeObserver(this.#onWindow, WINDOW_READY_TOPIC);
+    for (const undo of this.#undo.values()) {
+      undo();
+    }
+    this.#undo.clear();
+  }
+
+  // При запуске Zen успевает заполнить набор раньше, чем за ним начнут следить
+  #onWindow = win => {
+    this.#patch(win);
+    if (this.#taken(win)) {
+      this.#switchOff();
+    }
+  };
+
+  #taken(win) {
+    const keyset = win.document.getElementById(ZEN_KEYSET_ID);
+    if (!keyset) {
+      return false;
+    }
+    return this.#keysTaken(
+      Array.from(keyset.children, key => ({
+        key: key.getAttribute("key"),
+        modifiers: key.getAttribute("modifiers"),
+        disabled: key.getAttribute("disabled") == "true",
+      }))
+    );
+  }
+
+  #patch(win) {
+    if (this.#undo.has(win)) {
+      return;
+    }
+    const proto = Object.getPrototypeOf(win.gURLBar.controller);
+    const { handleKeyNavigation } = proto;
+    const keyStep = this.#keyStep;
+    // Повторяет ветку Ctrl+N и Ctrl+P из исходного метода. executeAction
+    // ложен, когда строка откладывает клавишу до прихода результатов: тогда
+    // метод зовут дважды, и сдвигать выделение надо только во второй раз.
+    proto.handleKeyNavigation = function (event, executeAction = true) {
+      const step = keyStep(event);
+      if (step && this.view.isOpen && !this.view.isResultMenuOpen()) {
+        if (executeAction) {
+          this.view.selectBy(1, { reverse: step < 0 });
+        }
+        event.preventDefault();
+        return;
+      }
+      handleKeyNavigation.call(this, event, executeAction);
+    };
+
+    // Zen пересобирает набор целиком, когда клавишу меняют в настройках
+    const observer = new win.MutationObserver(() => {
+      if (this.#taken(win)) {
+        this.#switchOff();
+      }
+    });
+    const keyset = win.document.getElementById(ZEN_KEYSET_ID);
+    if (keyset) {
+      observer.observe(keyset, { childList: true });
+    }
+
+    this.#undo.set(win, () => {
+      observer.disconnect();
+      // Метод живёт в самом прототипе, delete удалил бы и исходный
+      proto.handleKeyNavigation = handleKeyNavigation;
+    });
+    win.addEventListener("unload", () => this.#undo.delete(win), { once: true });
+  }
+}
+
 // Cmd+Tab, в отличие от щелчка в Dock, не шлёт приложению reopen, и Zen без
 // окон становится активным, но пустым. Об активации macOS сообщает через
 // applicationDidBecomeActive, Firefox пересылает её как mac_app_activate.
@@ -284,7 +468,7 @@ class ReopenOnActivate {
     // На запуске первое окно открывает сам Zen, до него активации не трогаем
     this.#waitingFirstWindow = !hasBrowserWindows();
     if (this.#waitingFirstWindow) {
-      Services.obs.addObserver(this.#onFirstWindow, FIRST_WINDOW_TOPIC);
+      Services.obs.addObserver(this.#onFirstWindow, WINDOW_READY_TOPIC);
     }
     Services.obs.addObserver(this.#onAppActivate, APP_ACTIVATE_TOPIC);
   }
@@ -292,14 +476,14 @@ class ReopenOnActivate {
   disable() {
     Services.obs.removeObserver(this.#onAppActivate, APP_ACTIVATE_TOPIC);
     if (this.#waitingFirstWindow) {
-      Services.obs.removeObserver(this.#onFirstWindow, FIRST_WINDOW_TOPIC);
+      Services.obs.removeObserver(this.#onFirstWindow, WINDOW_READY_TOPIC);
       this.#waitingFirstWindow = false;
     }
     lazy.clearTimeout(this.#timer);
   }
 
   #onFirstWindow = () => {
-    Services.obs.removeObserver(this.#onFirstWindow, FIRST_WINDOW_TOPIC);
+    Services.obs.removeObserver(this.#onFirstWindow, WINDOW_READY_TOPIC);
     this.#waitingFirstWindow = false;
   };
 
@@ -521,11 +705,20 @@ this.zenTweaks = class extends ExtensionAPI {
     const { promoteSpaceTab } = ChromeUtils.importESModule(
       `resource://${this.#resourceHost}/newtab-results.mjs`
     );
+    const urlbarKeys = ChromeUtils.importESModule(
+      `resource://${this.#resourceHost}/urlbar-keys.mjs`
+    );
 
     this.#features = new Map([
-      ["fullscreenSidebar", new UserSheet(this.extension, "fullscreen-sidebar.css")],
+      ["fullscreenSidebar", new FullscreenSidebar(this.extension)],
       ["workspaceTabs", new WorkspaceTabs()],
       ["arcNewTab", new ArcNewTab(promoteSpaceTab)],
+      [
+        "urlbarKeys",
+        new UrlbarKeys(urlbarKeys, () =>
+          Services.prefs.setBoolPref(PREF_BRANCH + "urlbarKeys", false)
+        ),
+      ],
       ["reopenOnActivate", new ReopenOnActivate()],
       // На других платформах кнопки PiP и так стоят справа
       [
@@ -621,6 +814,11 @@ this.zenTweaks = class extends ExtensionAPI {
   #activate(name) {
     const feature = this.#features.get(name);
     if (feature.zenPrefs && !this.#applyZenPrefs(name, feature.zenPrefs)) {
+      return;
+    }
+    // Клавишу доработки уже занял сам Zen
+    if (feature.conflicts?.()) {
+      Services.prefs.setBoolPref(PREF_BRANCH + name, false);
       return;
     }
     feature.enable();

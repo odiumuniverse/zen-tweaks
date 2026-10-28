@@ -3,7 +3,7 @@
     "message": "Zen Tweaks"
   },
   "extensionDescription": {
-    "message": "Arc-like tweaks for Zen: the sidebar over fullscreen video, only this space's tabs in the address bar, Cmd+T like in Arc, a window on Cmd+Tab, PiP buttons on the right, Picture-in-Picture like in Arc."
+    "message": "Arc-like tweaks for Zen: the sidebar over fullscreen video, only this space's tabs in the address bar, Cmd+T like in Arc, Ctrl+J and Ctrl+K in the address bar, a window on Cmd+Tab, PiP buttons on the right, Picture-in-Picture like in Arc."
   },
   "fullscreenSidebarTitle": {
     "message": "Sidebar over fullscreen video"
@@ -22,6 +22,12 @@
   },
   "arcNewTabDescription": {
     "message": "In the bar Cmd+T opens, an open tab of this space that matches what you typed comes first, so Enter switches to it instead of searching. The bar opens empty, and new tabs go to the top of the list; a hidden New Tab button stays hidden. Turns off “Only this space's tabs in the address bar”. If you change these settings in Zen yourself, the tweak switches off."
+  },
+  "urlbarKeysTitle": {
+    "message": "Ctrl+J and Ctrl+K in the address bar"
+  },
+  "urlbarKeysDescription": {
+    "message": "Ctrl+J and Ctrl+K move through the suggestions in the bar Cmd+T or Cmd+L opens, like the arrow keys and Ctrl+N and Ctrl+P. Switches off if you assign Ctrl+J or Ctrl+K to something in Zen's keyboard shortcuts."
   },
   "reopenOnActivateTitle": {
     "message": "Open a window on Cmd+Tab"
