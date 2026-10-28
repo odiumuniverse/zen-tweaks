@@ -1,0 +1,28 @@
+/*
+ * Zen: Glance в духе Peek из Arc. Glance и так устроен как Peek: карточка
+ * поверх затемнённой страницы и столбик кнопок справа. Здесь кнопки
+ * «Закрыть», «Развернуть» и «Разделить» становятся крупными белыми кругами
+ * с тенью, как в Arc.
+ *
+ * parent.js регистрирует файл как пользовательскую таблицу, поэтому всё с
+ * !important.
+ */
+.zen-glance-sidebar-container {
+  gap: 12px !important;
+
+  & toolbarbutton {
+    width: 44px !important;
+    height: 44px !important;
+    padding: 12px !important;
+    border-radius: 50% !important;
+    background: #fff !important;
+    color: var(--zen-primary-color, #4b9fd5) !important;
+    fill: currentColor !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18) !important;
+    opacity: 1 !important;
+
+    &:hover {
+      background: #f2f2f2 !important;
+    }
+  }
+}

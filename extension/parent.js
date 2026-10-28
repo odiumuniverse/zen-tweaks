@@ -22,6 +22,8 @@ const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
   BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.sys.mjs",
   PictureInPicture: "moz-src:///toolkit/components/pictureinpicture/PictureInPicture.sys.mjs",
+  PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
+  gZenSpaceRoutingManager: "resource:///modules/zen/spacerouting/ZenSpaceRoutingManager.sys.mjs",
   UrlbarMuxerStandard: "moz-src:///browser/components/urlbar/UrlbarMuxerStandard.sys.mjs",
   UrlbarShared: "chrome://browser/content/urlbar/UrlbarShared.mjs",
   clearTimeout: "resource://gre/modules/Timer.sys.mjs",
@@ -40,6 +42,11 @@ const WINDOW_READY_TOPIC = "browser-delayed-startup-finished";
 
 // Набор, куда Zen складывает горячие клавиши из своих настроек
 const ZEN_KEYSET_ID = "zenKeyset";
+
+// Little Arc открывается по центру основного окна, но не больше этой доли экрана
+const LITTLE_ARC_WIDTH = 960;
+const LITTLE_ARC_HEIGHT = 720;
+const LITTLE_ARC_SCREEN_SHARE = 0.8;
 
 const PIP_WINDOW_TYPE = "Toolkit:PictureInPicture";
 // Zen перематывает на 5 секунд за сообщение, Arc — на 15
@@ -456,6 +463,20 @@ class UrlbarKeys {
   }
 }
 
+// Ctrl+Tab переключает на недавние вкладки текущего пространства, а не на
+// соседнюю по списку. Это встроенная настройка «Ctrl+Tab переключает между
+// вкладками в порядке недавнего использования»: всё делает zenPrefs, и если
+// её выключить в настройках, доработка выключится.
+class RecentCtrlTab {
+  available = true;
+  defaultEnabled = false;
+  zenPrefs = { required: { "browser.ctrlTab.sortByRecentlyUsed": true } };
+
+  enable() {}
+
+  disable() {}
+}
+
 // Cmd+Tab, в отличие от щелчка в Dock, не шлёт приложению reopen, и Zen без
 // окон становится активным, но пустым. Об активации macOS сообщает через
 // applicationDidBecomeActive, Firefox пересылает её как mac_app_activate.
@@ -508,6 +529,12 @@ class ArcPip {
   available = true;
   defaultEnabled = false;
   excludes = "pipButtons";
+  zenPrefs = {
+    required: {},
+    // Как в Arc, играющее видео само уходит в PiP, когда переключаешься с его
+    // вкладки. Выключат в настройках — доработка останется включённой.
+    extra: { "media.videocontrols.picture-in-picture.enable-when-switching-tabs.enabled": true },
+  };
   #sheet;
   #extension;
   #pipTopBar;
@@ -679,6 +706,357 @@ function pipOrigin(win) {
   }
 }
 
+// Переменные темы основного окна, которые Little Arc берёт себе
+const THEME_VARS = ["--zen-primary-color", "--toolbox-textcolor", "--toolbar-color-scheme"];
+
+// Little Arc: ссылка из другого приложения открывается в маленьком окне, как
+// в Arc, а не вкладкой основного окна. Если под ссылку подошло правило Space
+// Routing, она по-прежнему идёт в своё пространство. Окно — всплывающее окно
+// Zen без синхронизации: getTopWindow его пропускает, так что чужие ссылки и
+// действия Zen в него не попадают, а контейнер текущего пространства Zen
+// даёт ему сам. Тему пространства окно берёт у основного, раскладку задаёт
+// little-arc.css.
+//
+// Esc закрывает окно, Cmd+O переносит вкладку в текущее пространство
+// основного окна, Cmd+Shift+O и стрелка у кнопки выбирают пространство, а
+// Cmd+Opt+N в любом окне Zen открывает пустой Little Arc со строкой поиска.
+// Новые вкладки из Little Arc уходят в основное окно, а при выходе из Zen
+// окна Little Arc закрываются, чтобы не вернуться большими окнами.
+class LittleArc {
+  available = AppConstants.platform == "macosx";
+  defaultEnabled = false;
+  #sheet;
+  #extension;
+  #command;
+  #opensInLittleArc;
+  // Окно Little Arc → { opener: основное окно, search: открыть строку поиска }
+  #openers = new Map();
+  #undo = new Map();
+
+  constructor(extension, { littleArcCommand, opensInLittleArc }) {
+    this.#extension = extension;
+    this.#sheet = new UserSheet(extension, "little-arc.css");
+    this.#command = littleArcCommand;
+    this.#opensInLittleArc = opensInLittleArc;
+  }
+
+  enable() {
+    this.#sheet.enable();
+    // BrowserContentHandler отдаёт внешнюю ссылку окну, которое вернёт этот метод
+    const routing = lazy.gZenSpaceRoutingManager;
+    const { getWindowForExternalUri } = Object.getPrototypeOf(routing);
+    routing.getWindowForExternalUri = (uri, defaultWindow) => {
+      const link = {
+        // Без пространства по умолчанию для внешних ссылок: оно не правило
+        route: routing.routeUri(uri?.spec, { fromExternal: false }),
+        isPrivate: lazy.PrivateBrowsingUtils.isWindowPrivate(defaultWindow),
+        scheme: uri?.scheme,
+      };
+      if (!this.#opensInLittleArc(link)) {
+        return getWindowForExternalUri.call(routing, uri, defaultWindow);
+      }
+      // У окна BrowserContentHandler зовёт только browserDOMWindow.openURI
+      return {
+        browserDOMWindow: {
+          openURI: externalUri => {
+            this.#open(defaultWindow, externalUri.spec);
+            return null;
+          },
+        },
+      };
+    };
+    Services.obs.addObserver(this.#onWindow, WINDOW_READY_TOPIC);
+    Services.obs.addObserver(this.#onQuit, "quit-application-requested");
+    for (const win of readyBrowserWindows()) {
+      this.#onWindow(win);
+    }
+  }
+
+  disable() {
+    // Метод прототипа, собственное свойство ставит только enable
+    delete lazy.gZenSpaceRoutingManager.getWindowForExternalUri;
+    Services.obs.removeObserver(this.#onWindow, WINDOW_READY_TOPIC);
+    Services.obs.removeObserver(this.#onQuit, "quit-application-requested");
+    for (const undo of this.#undo.values()) {
+      undo();
+    }
+    this.#undo.clear();
+    this.#sheet.disable();
+  }
+
+  #open(opener, url, { search = false } = {}) {
+    const args = Cc["@mozilla.org/supports-string;1"].createInstance(Ci.nsISupportsString);
+    args.data = url;
+    const { availWidth, availHeight } = opener.screen;
+    const width = Math.round(Math.min(LITTLE_ARC_WIDTH, availWidth * LITTLE_ARC_SCREEN_SHARE));
+    const height = Math.round(Math.min(LITTLE_ARC_HEIGHT, availHeight * LITTLE_ARC_SCREEN_SHARE));
+    const left = Math.round(opener.screenX + (opener.outerWidth - width) / 2);
+    const top = Math.round(opener.screenY + (opener.outerHeight - height) / 2);
+    const win = lazy.BrowserWindowTracker.openWindow({
+      openerWindow: opener,
+      zenSyncedWindow: false,
+      all: false,
+      args,
+      features: `popup,width=${width},height=${height},left=${left},top=${top}`,
+    });
+    this.#openers.set(win, { opener, search });
+  }
+
+  #onWindow = win => {
+    if (this.#undo.has(win)) {
+      return;
+    }
+    const littleArc = this.#openers.get(win);
+    if (littleArc) {
+      this.#undo.set(win, this.#decorate(win, littleArc));
+    } else if (win.toolbar.visible) {
+      this.#undo.set(win, this.#listen(win));
+    } else {
+      return;
+    }
+    win.addEventListener(
+      "unload",
+      () => {
+        this.#undo.delete(win);
+        this.#openers.delete(win);
+      },
+      { once: true }
+    );
+  };
+
+  #onQuit = () => {
+    for (const win of this.#openers.keys()) {
+      win.close();
+    }
+  };
+
+  // Основное окно для Little Arc: то, откуда его открыли, а если его закрыли —
+  // верхнее. Всплывающие окна getTopWindow пропускает.
+  #mainWindow(win) {
+    const opener = this.#openers.get(win)?.opener;
+    return opener && !opener.closed ? opener : lazy.BrowserWindowTracker.getTopWindow();
+  }
+
+  // Cmd+Opt+N в обычном окне Zen
+  #listen(win) {
+    const onKeyDown = event => {
+      if (this.#command(event) == "new") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.#open(win, "about:blank", { search: true });
+      }
+    };
+    win.addEventListener("keydown", onKeyDown, true);
+    return () => win.removeEventListener("keydown", onKeyDown, true);
+  }
+
+  #decorate(win, { opener, search }) {
+    const doc = win.document;
+    const root = doc.documentElement;
+    root.setAttribute("zen-tweaks-little-arc", "");
+    const unpaint = this.#paint(win, opener);
+
+    // Строка всплывающего окна только для чтения, а в Little Arc по ней ищут
+    win.gURLBar.readOnly = false;
+    if (search) {
+      win.gURLBar.focus();
+    }
+
+    // Firefox не даёт всплывающему окну с одной вкладкой рисовать свой
+    // заголовок, а у Little Arc кнопки окна стоят в одной строке с адресом
+    const titlebar = win.CustomTitlebar;
+    const { allowedBy } = titlebar;
+    titlebar.allowedBy = (condition, allow) =>
+      allowedBy.call(titlebar, condition, allow || condition == "non-popup");
+    titlebar.allowedBy("non-popup", true);
+
+    // Кнопки окна живут в боковой панели, а всплывающее окно её прячет, и
+    // кнопок не видно. Ставим их в начало строки; Zen переставляет их, когда
+    // меняется раскладка, и тогда возвращаем обратно.
+    const navBar = doc.getElementById("nav-bar");
+    const windowButtons = doc.querySelector(".titlebar-buttonbox-container");
+    const buttonsHome = windowButtons.parentNode;
+    const keepButtons = () => {
+      if (windowButtons.parentNode != navBar) {
+        navBar.prepend(windowButtons);
+      }
+    };
+    keepButtons();
+    const buttonsObserver = new win.MutationObserver(keepButtons);
+    buttonsObserver.observe(navBar, { childList: true });
+
+    // «Открыть в <пространство> ⌘O» и стрелка выбора пространства
+    const html = tag => doc.createElementNS("http://www.w3.org/1999/xhtml", tag);
+    const actions = doc.createXULElement("hbox");
+    actions.id = "zen-tweaks-little-arc-actions";
+    const openButton = html("button");
+    openButton.id = "zen-tweaks-little-arc-open";
+    const openLabel = html("span");
+    openLabel.textContent = this.#extension.localizeMessage("littleArcOpenIn");
+    const spaceName = html("span");
+    spaceName.className = "zen-tweaks-little-arc-space";
+    const shortcut = html("kbd");
+    shortcut.textContent = "⌘O";
+    openButton.append(openLabel, spaceName, shortcut);
+    const spacesButton = html("button");
+    spacesButton.id = "zen-tweaks-little-arc-spaces";
+    spacesButton.title = this.#extension.localizeMessage("littleArcSpaces");
+    actions.append(openButton, spacesButton);
+    doc.getElementById("PanelUI-button").before(actions);
+
+    const spacesMenu = doc.createXULElement("menupopup");
+    spacesMenu.id = "zen-tweaks-little-arc-spaces-menu";
+    doc.getElementById("mainPopupSet").append(spacesMenu);
+    const showSpaces = () => {
+      const main = this.#mainWindow(win);
+      if (!main) {
+        return;
+      }
+      spacesMenu.replaceChildren(
+        ...main.gZenWorkspaces.getWorkspaces().map(space => {
+          const item = doc.createXULElement("menuitem");
+          // Значок пространства — эмодзи или адрес картинки
+          if (/^[a-z-]+:/.test(space.icon ?? "")) {
+            item.className = "menuitem-iconic";
+            item.setAttribute("image", space.icon);
+            item.setAttribute("label", space.name);
+          } else {
+            item.setAttribute("label", [space.icon, space.name].filter(Boolean).join("  "));
+          }
+          item.addEventListener("command", () => this.#moveTo(win, space));
+          return item;
+        })
+      );
+      spacesMenu.openPopup(spacesButton, "after_end");
+    };
+
+    // Пространство на кнопке — текущее в основном окне, оно может смениться
+    const updateSpace = () => {
+      spaceName.textContent = this.#mainWindow(win)?.gZenWorkspaces.getActiveWorkspace()?.name ?? "";
+    };
+    updateSpace();
+
+    const onOpenClick = () => this.#moveTo(win);
+    openButton.addEventListener("click", onOpenClick);
+    spacesButton.addEventListener("click", showSpaces);
+    win.addEventListener("activate", updateSpace);
+
+    // Esc ловит <key>: он срабатывает, только если страница нажатие не забрала
+    const keyset = doc.createXULElement("keyset");
+    keyset.id = "zen-tweaks-little-arc-keys";
+    const closeCommand = doc.createXULElement("command");
+    closeCommand.id = "zen-tweaks-little-arc-close";
+    const close = () => win.close();
+    closeCommand.addEventListener("command", close);
+    const escKey = doc.createXULElement("key");
+    escKey.setAttribute("keycode", "VK_ESCAPE");
+    escKey.setAttribute("command", closeCommand.id);
+    keyset.append(closeCommand, escKey);
+    doc.getElementById("mainKeyset").before(keyset);
+
+    // Остальные клавиши — раньше страницы и раньше Cmd+O у Glance
+    const onKeyDown = event => {
+      const command = this.#command(event);
+      if (!command || command == "close") {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      if (command == "open") {
+        this.#moveTo(win);
+      } else if (command == "openIn") {
+        showSpaces();
+      } else {
+        this.#open(this.#mainWindow(win) ?? opener, "about:blank", { search: true });
+      }
+    };
+    win.addEventListener("keydown", onKeyDown, true);
+
+    // Ссылки в новой вкладке Little Arc уходят в текущее пространство
+    // основного окна, как в Arc. Вкладка переезжает как есть, со своим
+    // контейнером: она ещё грузится, и открыть её заново было бы нечем.
+    const onTabOpen = event => {
+      const tab = event.target;
+      win.setTimeout(() => {
+        const main = this.#mainWindow(win);
+        if (main && tab.isConnected && !tab.closing) {
+          main.gBrowser.adoptTab(tab, { selectTab: true });
+          main.focus();
+        }
+      });
+    };
+    win.gBrowser.tabContainer.addEventListener("TabOpen", onTabOpen);
+
+    return () => {
+      win.gBrowser.tabContainer.removeEventListener("TabOpen", onTabOpen);
+      win.removeEventListener("keydown", onKeyDown, true);
+      win.removeEventListener("activate", updateSpace);
+      keyset.remove();
+      spacesMenu.remove();
+      actions.remove();
+      buttonsObserver.disconnect();
+      buttonsHome.prepend(windowButtons);
+      titlebar.allowedBy = allowedBy;
+      win.TabBarVisibility.update(true);
+      win.gURLBar.readOnly = true;
+      unpaint();
+      root.removeAttribute("zen-tweaks-little-arc");
+    };
+  }
+
+  // Тема текущего пространства основного окна
+  #paint(win, opener) {
+    const from = opener.document.documentElement.style;
+    const to = win.document.documentElement.style;
+    for (const name of THEME_VARS) {
+      to.setProperty(name, from.getPropertyValue(name));
+    }
+    const background = opener.gZenThemePicker?.toolbarBackgroundElement?.style.getPropertyValue(
+      "--zen-main-browser-background-toolbar"
+    );
+    to.setProperty("--zen-tweaks-little-arc-background", background || "");
+    return () => {
+      for (const name of [...THEME_VARS, "--zen-tweaks-little-arc-background"]) {
+        to.removeProperty(name);
+      }
+    };
+  }
+
+  // Переносит вкладку окна Little Arc в пространство основного окна. Контейнер
+  // вкладки не меняется: если у пространства другой, адрес открывается заново.
+  #adopt(main, win, tab, space) {
+    if (tab.userContextId == (space.containerTabId ?? 0)) {
+      return main.gBrowser.adoptTab(tab, { selectTab: true, spaceId: space.uuid });
+    }
+    const moved = main.gBrowser.addTab(tab.linkedBrowser.currentURI.spec, {
+      userContextId: space.containerTabId,
+      triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal(),
+    });
+    main.gZenWorkspaces.moveTabToWorkspace(moved, space.uuid);
+    main.gBrowser.selectedTab = moved;
+    win.gBrowser.removeTab(tab);
+    return moved;
+  }
+
+  // Cmd+O и кнопка «Открыть в»: вкладка уходит в пространство, окно закрывается
+  #moveTo(win, space) {
+    const main = this.#mainWindow(win);
+    if (!main) {
+      return;
+    }
+    space ??= main.gZenWorkspaces.getActiveWorkspace();
+    const tab = this.#adopt(main, win, win.gBrowser.selectedTab, space);
+    if (tab && space.uuid != main.gZenWorkspaces.activeWorkspace) {
+      main.gZenWorkspaces.lastSelectedWorkspaceTabs[space.uuid] = tab;
+      main.gZenWorkspaces.changeWorkspace(space);
+    }
+    main.focus();
+    if (!win.closed) {
+      win.close();
+    }
+  }
+}
+
 function resourceProtocol() {
   return Services.io.getProtocolHandler("resource").QueryInterface(Ci.nsIResProtocolHandler);
 }
@@ -708,6 +1086,9 @@ this.zenTweaks = class extends ExtensionAPI {
     const urlbarKeys = ChromeUtils.importESModule(
       `resource://${this.#resourceHost}/urlbar-keys.mjs`
     );
+    const littleArc = ChromeUtils.importESModule(
+      `resource://${this.#resourceHost}/little-arc.mjs`
+    );
 
     this.#features = new Map([
       ["fullscreenSidebar", new FullscreenSidebar(this.extension)],
@@ -719,6 +1100,7 @@ this.zenTweaks = class extends ExtensionAPI {
           Services.prefs.setBoolPref(PREF_BRANCH + "urlbarKeys", false)
         ),
       ],
+      ["recentCtrlTab", new RecentCtrlTab()],
       ["reopenOnActivate", new ReopenOnActivate()],
       // На других платформах кнопки PiP и так стоят справа
       [
@@ -729,6 +1111,9 @@ this.zenTweaks = class extends ExtensionAPI {
         ),
       ],
       ["arcPip", new ArcPip(this.extension, pipTopBar)],
+      ["littleArc", new LittleArc(this.extension, littleArc)],
+      // Glance уже устроен как Peek в Arc, меняется только вид кнопок
+      ["arcGlance", Object.assign(new UserSheet(this.extension, "arc-glance.css"), { defaultEnabled: false })],
     ]);
 
     // Через about:config можно включить обе из пары: остаётся та, что выше в списке

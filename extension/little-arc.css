@@ -1,0 +1,144 @@
+/*
+ * Zen: Little Arc. parent.js ставит zen-tweaks-little-arc на корень
+ * всплывающего окна, которое открывает для ссылки из другого приложения, и
+ * копирует в него тему пространства основного окна. Раскладка и размеры как
+ * в Arc: кнопки окна, поле с лупой, доменом, значком сайта и «Копировать
+ * ссылку», рядом рамка с «Открыть в <пространство> ⌘O» и стрелкой выбора
+ * пространства.
+ *
+ * parent.js регистрирует файл как пользовательскую таблицу, поэтому всё с
+ * !important: иначе правила проиграли бы стилям самого Zen.
+ */
+:root[zen-tweaks-little-arc] {
+  & #nav-bar {
+    background: var(--zen-tweaks-little-arc-background, transparent) !important;
+    min-height: 46px !important;
+    margin: 0 !important;
+    padding: 0 7px 0 4px !important;
+    gap: 0 !important;
+    align-items: center !important;
+  }
+
+  /* parent.js переносит сюда кнопки окна, а Zen прячет их в #nav-bar */
+  & #nav-bar > .titlebar-buttonbox-container {
+    display: flex !important;
+    visibility: visible !important;
+    margin-inline-end: 9px !important;
+  }
+
+  /* Неактивное окно Zen приглушает, Arc — нет */
+  & .browser-titlebar:-moz-window-inactive {
+    opacity: 1 !important;
+  }
+
+  & #urlbar {
+    --urlbar-height: 30px !important;
+  }
+
+  & #urlbar .urlbar-background {
+    border-radius: 7px !important;
+  }
+
+  /* Лупа слева, пока строку не правят */
+  & #urlbar:not([focused]) .urlbar-input-container::before {
+    content: "" !important;
+    flex-shrink: 0 !important;
+    width: 14px !important;
+    height: 14px !important;
+    margin-inline-start: 4px !important;
+    align-self: center !important;
+    background: url("chrome://global/skin/icons/search-glass.svg") center / contain no-repeat !important;
+    -moz-context-properties: fill !important;
+    fill: currentColor !important;
+    opacity: 0.6 !important;
+  }
+
+  /* Домен посередине поля, пока строку не правят */
+  & #urlbar:not([focused]) #urlbar-input {
+    text-align: center !important;
+    color: var(--toolbox-textcolor, currentColor) !important;
+    font-weight: 400 !important;
+  }
+
+  /* Справа в поле значок сайта, крайней — «Копировать ссылку», как в Arc */
+  & #identity-box {
+    order: 1 !important;
+  }
+
+  & #zen-copy-url-button {
+    order: 2 !important;
+  }
+
+  /* У Little Arc нет меню приложения */
+  & #PanelUI-button {
+    display: none !important;
+  }
+}
+
+#zen-tweaks-little-arc-actions {
+  display: flex !important;
+  align-items: center !important;
+  height: 30px !important;
+  margin-inline-start: 9px !important;
+  border: 1px solid color-mix(in srgb, var(--toolbox-textcolor, currentColor) 14%, transparent) !important;
+  border-radius: 7px !important;
+  background: color-mix(in srgb, var(--zen-primary-color, currentColor) 14%, rgb(0 0 0 / 0.45)) !important;
+  overflow: hidden !important;
+  -moz-window-dragging: no-drag !important;
+}
+
+#zen-tweaks-little-arc-open,
+#zen-tweaks-little-arc-spaces {
+  appearance: none !important;
+  border: none !important;
+  height: 100% !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  background-color: transparent !important;
+  color: inherit !important;
+  font: menu !important;
+  font-size: 13px !important;
+  cursor: default !important;
+
+  &:hover {
+    background-color: color-mix(in srgb, var(--toolbox-textcolor, currentColor) 8%, transparent) !important;
+  }
+}
+
+#zen-tweaks-little-arc-open {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  padding: 0 6px 0 10px !important;
+
+  & span:first-child {
+    opacity: 0.6 !important;
+  }
+
+  & kbd {
+    margin-inline-start: 4px !important;
+    font: inherit !important;
+    font-size: 12px !important;
+    padding: 2px 5px !important;
+    border-radius: 5px !important;
+    background: color-mix(in srgb, var(--toolbox-textcolor, currentColor) 9%, transparent) !important;
+    opacity: 0.6 !important;
+  }
+}
+
+.zen-tweaks-little-arc-space {
+  font-weight: 600 !important;
+}
+
+/* Стрелка, а слева от неё черта-разделитель */
+#zen-tweaks-little-arc-spaces {
+  width: 30px !important;
+  padding: 0 !important;
+  background-image: url("chrome://global/skin/icons/arrow-down.svg"),
+    linear-gradient(color-mix(in srgb, var(--toolbox-textcolor, currentColor) 20%, transparent) 0 0) !important;
+  background-repeat: no-repeat !important;
+  background-position: center, left center !important;
+  background-size: 12px, 1px 16px !important;
+  -moz-context-properties: fill !important;
+  fill: color-mix(in srgb, var(--toolbox-textcolor, currentColor) 70%, transparent) !important;
+}

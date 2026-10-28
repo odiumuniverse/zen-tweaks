@@ -3,7 +3,7 @@
     "message": "Zen Tweaks"
   },
   "extensionDescription": {
-    "message": "Arc-like tweaks for Zen: the sidebar over fullscreen video, only this space's tabs in the address bar, Cmd+T like in Arc, Ctrl+J and Ctrl+K in the address bar, a window on Cmd+Tab, PiP buttons on the right, Picture-in-Picture like in Arc."
+    "message": "Arc-like tweaks for Zen: the sidebar over fullscreen video, only this space's tabs in the address bar, Cmd+T like in Arc, Ctrl+J and Ctrl+K in the address bar, Ctrl+Tab through recent tabs, a window on Cmd+Tab, PiP buttons on the right, Picture-in-Picture like in Arc, Little Arc, Glance like Peek."
   },
   "fullscreenSidebarTitle": {
     "message": "Sidebar over fullscreen video"
@@ -29,6 +29,12 @@
   "urlbarKeysDescription": {
     "message": "Ctrl+J and Ctrl+K move through the suggestions in the bar Cmd+T or Cmd+L opens, like the arrow keys and Ctrl+N and Ctrl+P. Switches off if you assign Ctrl+J or Ctrl+K to something in Zen's keyboard shortcuts."
   },
+  "recentCtrlTabTitle": {
+    "message": "Ctrl+Tab through recent tabs"
+  },
+  "recentCtrlTabDescription": {
+    "message": "Ctrl+Tab switches to the tab of this space you used last, not to the next one in the list; keep holding Ctrl and press Tab again to go further back. If you turn off “Ctrl+Tab cycles through tabs in recently used order” in Zen's settings, the tweak switches off."
+  },
   "reopenOnActivateTitle": {
     "message": "Open a window on Cmd+Tab"
   },
@@ -45,7 +51,25 @@
     "message": "Picture-in-Picture like in Arc"
   },
   "arcPipDescription": {
-    "message": "“Back to tab” in the top left, the site's domain in the middle, Minimize and Close in the top right; play/pause and 15-second seeking in the center; a thin progress bar at the bottom. Labels and the domain show up when they fit. Turns off “Close and minimize on the right”."
+    "message": "“Back to tab” in the top left, the site's domain in the middle, Minimize and Close in the top right; play/pause and 15-second seeking in the center; a thin progress bar at the bottom. Labels and the domain show up when they fit. A playing video moves to Picture-in-Picture by itself when you switch away from its tab. Turns off “Close and minimize on the right”."
+  },
+  "littleArcTitle": {
+    "message": "Little Arc for links from other apps"
+  },
+  "littleArcDescription": {
+    "message": "A link from another app opens in a small window with the current space's theme and container, unless a Space Routing rule sends it to its own space; the default route for external links is not used. Cmd+O moves it to the current space, Cmd+Shift+O picks a space, Esc closes it, and Cmd+Opt+N opens an empty one to search from."
+  },
+  "littleArcOpenIn": {
+    "message": "Open in"
+  },
+  "littleArcSpaces": {
+    "message": "Open in another space (⇧⌘O)"
+  },
+  "arcGlanceTitle": {
+    "message": "Glance like Peek in Arc"
+  },
+  "arcGlanceDescription": {
+    "message": "The Close, Expand and Split buttons next to a Glance become large white circles, as in Arc's Peek."
   },
   "pipMinimizeLabel": {
     "message": "Minimize"
