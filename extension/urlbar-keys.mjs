@@ -15,8 +15,10 @@ export function urlbarKeyStep({ key, code, ctrlKey, metaKey, altKey, shiftKey })
   return STEPS[letter] ?? 0;
 }
 
-// true, если в горячих клавишах Zen на Ctrl+J или Ctrl+K что-то назначено:
-// тогда доработка уступает клавишу. keys — элементы <key> набора Zen.
+// true, если на Ctrl+J или Ctrl+K что-то назначено: тогда доработка уступает
+// клавишу. keys — элементы <key> окна; about:keyboard пишет букву заглавной.
 export function urlbarKeysTaken(keys) {
-  return keys.some(({ key, modifiers, disabled }) => !disabled && modifiers == "control" && key in STEPS);
+  return keys.some(
+    ({ key, modifiers, disabled }) => !disabled && modifiers == "control" && key?.toLowerCase() in STEPS
+  );
 }

@@ -40,9 +40,6 @@ const APP_ACTIVATE_TOPIC = "mac_app_activate";
 // Окно браузера достроено: gURLBar и горячие клавиши Zen на месте
 const WINDOW_READY_TOPIC = "browser-delayed-startup-finished";
 
-// Набор, куда Zen складывает горячие клавиши из своих настроек
-const ZEN_KEYSET_ID = "zenKeyset";
-
 // Little Arc открывается по центру основного окна, но не больше этой доли экрана
 const LITTLE_ARC_WIDTH = 960;
 const LITTLE_ARC_HEIGHT = 720;
@@ -363,8 +360,8 @@ class ArcNewTab {
 // подмена в каждом окне своя. На Windows и Linux Ctrl+J и Ctrl+K — загрузки
 // и поиск, там доработка не нужна.
 //
-// Если в горячих клавишах Zen на Ctrl+J или Ctrl+K что-то назначено,
-// доработка выключается: иначе при открытом списке она перебивала бы клавишу.
+// Если в about:keyboard на Ctrl+J или Ctrl+K что-то назначено, доработка
+// выключается: иначе при открытом списке она перебивала бы клавишу.
 class UrlbarKeys {
   available = AppConstants.platform == "macosx";
   defaultEnabled = false;
@@ -399,7 +396,8 @@ class UrlbarKeys {
     this.#undo.clear();
   }
 
-  // При запуске Zen успевает заполнить набор раньше, чем за ним начнут следить
+  // При запуске назначения из about:keyboard могут успеть раньше, чем за ними
+  // начнут следить
   #onWindow = win => {
     this.#patch(win);
     if (this.#taken(win)) {
@@ -408,12 +406,8 @@ class UrlbarKeys {
   };
 
   #taken(win) {
-    const keyset = win.document.getElementById(ZEN_KEYSET_ID);
-    if (!keyset) {
-      return false;
-    }
     return this.#keysTaken(
-      Array.from(keyset.children, key => ({
+      Array.from(win.document.querySelectorAll("key"), key => ({
         key: key.getAttribute("key"),
         modifiers: key.getAttribute("modifiers"),
         disabled: key.getAttribute("disabled") == "true",
@@ -443,16 +437,14 @@ class UrlbarKeys {
       handleKeyNavigation.call(this, event, executeAction);
     };
 
-    // Zen пересобирает набор целиком, когда клавишу меняют в настройках
+    // Gecko замечает новую клавишу, только когда её набор заново попадает в
+    // дерево, поэтому about:keyboard вынимает набор из body и возвращает обратно
     const observer = new win.MutationObserver(() => {
       if (this.#taken(win)) {
         this.#switchOff();
       }
     });
-    const keyset = win.document.getElementById(ZEN_KEYSET_ID);
-    if (keyset) {
-      observer.observe(keyset, { childList: true });
-    }
+    observer.observe(win.document.body, { childList: true });
 
     this.#undo.set(win, () => {
       observer.disconnect();
@@ -531,9 +523,13 @@ class ArcPip {
   excludes = "pipButtons";
   zenPrefs = {
     required: {},
-    // Как в Arc, играющее видео само уходит в PiP, когда переключаешься с его
-    // вкладки. Выключат в настройках — доработка останется включённой.
-    extra: { "media.videocontrols.picture-in-picture.enable-when-switching-tabs.enabled": true },
+    // Играющее видео само уходит в PiP, когда переключаешься с его вкладки,
+    // сворачиваешь окно или целиком закрываешь его другим. Выключат эти
+    // настройки — доработка останется включённой.
+    extra: {
+      "media.videocontrols.picture-in-picture.enable-when-switching-tabs.enabled": true,
+      "media.videocontrols.picture-in-picture.enable-when-occluded.enabled": true,
+    },
   };
   #sheet;
   #extension;
@@ -1231,6 +1227,7 @@ this.zenTweaks = class extends ExtensionAPI {
   #applyZenPrefs(name, { required, extra }) {
     const savedPref = `${PREF_BRANCH}${name}.saved`;
     const values = { ...required, ...extra };
+    this.#applyNewZenPrefs(savedPref, values);
     if (!Services.prefs.prefHasUserValue(savedPref)) {
       const saved = Object.fromEntries(Object.keys(values).map(pref => [pref, readUserPref(pref)]));
       Services.prefs.setStringPref(savedPref, JSON.stringify(saved));
@@ -1247,6 +1244,24 @@ this.zenTweaks = class extends ExtensionAPI {
       Services.prefs.addObserver(pref, this.#onZenPref);
     }
     return true;
+  }
+
+  // Настройка, которой не было, когда доработку включили: иначе при обновлении
+  // расширения она так и не применится, а при выключении не вернётся
+  #applyNewZenPrefs(savedPref, values) {
+    if (!Services.prefs.prefHasUserValue(savedPref)) {
+      return;
+    }
+    const saved = JSON.parse(Services.prefs.getStringPref(savedPref));
+    const added = Object.keys(values).filter(pref => !(pref in saved));
+    if (!added.length) {
+      return;
+    }
+    for (const pref of added) {
+      saved[pref] = readUserPref(pref);
+    }
+    Services.prefs.setStringPref(savedPref, JSON.stringify(saved));
+    this.#writeZenPrefs(Object.fromEntries(added.map(pref => [pref, values[pref]])));
   }
 
   #restoreZenPrefs(name) {

@@ -27,7 +27,7 @@
     "message": "Ctrl+J and Ctrl+K in the address bar"
   },
   "urlbarKeysDescription": {
-    "message": "Ctrl+J and Ctrl+K move through the suggestions in the bar Cmd+T or Cmd+L opens, like the arrow keys and Ctrl+N and Ctrl+P. Switches off if you assign Ctrl+J or Ctrl+K to something in Zen's keyboard shortcuts."
+    "message": "Ctrl+J and Ctrl+K move through the suggestions in the bar Cmd+T or Cmd+L opens, like the arrow keys and Ctrl+N and Ctrl+P. Switches off if you assign Ctrl+J or Ctrl+K to something in about:keyboard."
   },
   "recentCtrlTabTitle": {
     "message": "Ctrl+Tab through recent tabs"
@@ -51,7 +51,7 @@
     "message": "Picture-in-Picture like in Arc"
   },
   "arcPipDescription": {
-    "message": "“Back to tab” in the top left, the site's domain in the middle, Minimize and Close in the top right; play/pause and 15-second seeking in the center; a thin progress bar at the bottom. Labels and the domain show up when they fit. A playing video moves to Picture-in-Picture by itself when you switch away from its tab. Turns off “Close and minimize on the right”."
+    "message": "“Back to tab” in the top left, the site's domain in the middle, Minimize and Close in the top right; play/pause and 15-second seeking in the center; a thin progress bar at the bottom. Labels and the domain show up when they fit. A playing video moves to Picture-in-Picture by itself when you switch away from its tab, minimize its window or cover the window completely. Turns off “Close and minimize on the right”."
   },
   "littleArcTitle": {
     "message": "Little Arc for links from other apps"

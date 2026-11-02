@@ -4,7 +4,7 @@ import { urlbarKeyStep, urlbarKeysTaken } from "../extension/urlbar-keys.mjs";
 
 const ctrl = (key, code = `Key${key.toUpperCase()}`) => ({ key, code, ctrlKey: true });
 
-// Элемент <key> из набора горячих клавиш Zen: modifiers как в атрибуте
+// Элемент <key> окна: modifiers как в атрибуте
 const zenKey = (key, modifiers, disabled = false) => ({ key, modifiers, disabled });
 
 test("Ctrl+J двигает выделение вниз", () => {
@@ -38,6 +38,12 @@ test("Ctrl с другой буквой не наш", () => {
 test("Ctrl+J или Ctrl+K, назначенные в Zen, заняты", () => {
   assert.equal(urlbarKeysTaken([zenKey("t", "accel"), zenKey("j", "control")]), true);
   assert.equal(urlbarKeysTaken([zenKey("k", "control")]), true);
+});
+
+// about:keyboard записывает букву заглавной
+test("Ctrl+J или Ctrl+K, назначенные в about:keyboard, заняты", () => {
+  assert.equal(urlbarKeysTaken([zenKey("J", "control")]), true);
+  assert.equal(urlbarKeysTaken([zenKey("K", "control")]), true);
 });
 
 test("Cmd+J и Ctrl+Shift+K не занимают Ctrl+J и Ctrl+K", () => {
