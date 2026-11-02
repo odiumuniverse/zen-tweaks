@@ -40,6 +40,9 @@ const APP_ACTIVATE_TOPIC = "mac_app_activate";
 // Окно браузера достроено: gURLBar и горячие клавиши Zen на месте
 const WINDOW_READY_TOPIC = "browser-delayed-startup-finished";
 
+// Сколько длится анимация выхода из полноэкранного режима в macOS, подобрано на глаз
+const FULLSCREEN_EXIT_MS = 1500;
+
 // Little Arc открывается по центру основного окна, но не больше этой доли экрана
 const LITTLE_ARC_WIDTH = 960;
 const LITTLE_ARC_HEIGHT = 720;
@@ -174,8 +177,11 @@ class UserSheet {
 // Вкладка выбирается уже на нажатии кнопки мыши, и Zen сразу выходит из
 // полноэкранного режима: панель уезжает, а кнопка ещё зажата. Тогда малейшее
 // движение превращает щелчок в перетаскивание вкладки, а вкладку, брошенную
-// у края страницы, Zen ставит рядом в split view. Поэтому перетаскивание,
-// начатое нажатием в полноэкранном режиме, отменяется.
+// у края страницы, Zen ставит рядом в split view, в другом месте — отрывает в
+// новое окно. Атрибут inDOMFullscreen исчезает сразу, но анимация macOS ещё
+// идёт, и отпускание кнопки в ней теряется: Gecko считает кнопку зажатой.
+// Поэтому перетаскивание отменяется, если нажатие пришло в полноэкранном
+// режиме или вскоре после выхода из него.
 class FullscreenSidebar {
   available = true;
   #sheet;
@@ -207,13 +213,15 @@ class FullscreenSidebar {
       return;
     }
     const root = win.document.documentElement;
-    // Каждое нажатие перезаписывает флаг, так что потерянный mouseup его не залипит
+    let exitEndsAt = 0;
+    const onFullscreenExited = () => {
+      exitEndsAt = win.performance.now() + FULLSCREEN_EXIT_MS;
+    };
+    // Настоящее перетаскивание всегда начинается с нового нажатия, оно и перезапишет флаг
     let pressedInFullscreen = false;
     const onMouseDown = () => {
-      pressedInFullscreen = root.getAttribute("inDOMFullscreen") == "true";
-    };
-    const onMouseUp = () => {
-      pressedInFullscreen = false;
+      pressedInFullscreen =
+        root.getAttribute("inDOMFullscreen") == "true" || win.performance.now() < exitEndsAt;
     };
     // Вкладки начинают перетаскивание в dragstart контейнера, окно ловит его раньше
     const onDragStart = event => {
@@ -222,13 +230,13 @@ class FullscreenSidebar {
         event.stopPropagation();
       }
     };
+    win.addEventListener("MozDOMFullscreen:Exited", onFullscreenExited, true);
     win.addEventListener("mousedown", onMouseDown, true);
-    win.addEventListener("mouseup", onMouseUp, true);
     win.addEventListener("dragstart", onDragStart, true);
 
     this.#undo.set(win, () => {
+      win.removeEventListener("MozDOMFullscreen:Exited", onFullscreenExited, true);
       win.removeEventListener("mousedown", onMouseDown, true);
-      win.removeEventListener("mouseup", onMouseUp, true);
       win.removeEventListener("dragstart", onDragStart, true);
     });
     win.addEventListener("unload", () => this.#undo.delete(win), { once: true });
