@@ -525,6 +525,11 @@ class ReopenOnActivate {
 // в плеер добавляются подписи Minimize и Close, домен вкладки и перемотка на
 // 15 секунд. Подписи и домен показываются, только когда помещаются: решает
 // pipTopBar из pip-layout.mjs.
+//
+// Окно может закрыться лишь на миг: так macOS ведёт его через переход в
+// полноэкранный режим. Zen успевает запросить плеер, а когда плеер открывается,
+// вкладка уже активна. Такой плеер Zen считает открытым вручную и сам не
+// закрывает, поэтому запрос проверяется ещё раз: до открытия и после.
 class ArcPip {
   available = true;
   defaultEnabled = false;
@@ -542,12 +547,15 @@ class ArcPip {
   #sheet;
   #extension;
   #pipTopBar;
+  #isStaleAutoPip;
+  #zenRequest;
   #undo = new Map();
 
-  constructor(extension, pipTopBar) {
+  constructor(extension, { pipTopBar, isStaleAutoPip }) {
     this.#extension = extension;
     this.#sheet = new UserSheet(extension, "pip-arc.css");
     this.#pipTopBar = pipTopBar;
+    this.#isStaleAutoPip = isStaleAutoPip;
   }
 
   enable() {
@@ -556,9 +564,12 @@ class ArcPip {
     for (const win of Services.wm.getEnumerator(PIP_WINDOW_TYPE)) {
       this.#decorate(win);
     }
+    this.#zenRequest = lazy.PictureInPicture.handlePictureInPictureRequest;
+    lazy.PictureInPicture.handlePictureInPictureRequest = this.#request;
   }
 
   disable() {
+    lazy.PictureInPicture.handlePictureInPictureRequest = this.#zenRequest;
     Services.ww.unregisterNotification(this.#onWindow);
     for (const undo of this.#undo.values()) {
       undo();
@@ -566,6 +577,32 @@ class ArcPip {
     this.#undo.clear();
     this.#sheet.disable();
   }
+
+  #request = async (wgp, videoData) => {
+    const pip = lazy.PictureInPicture;
+    const browser = wgp.browsingContext.top.embedderElement;
+    const isStale = () => {
+      const win = browser.documentGlobal;
+      return this.#isStaleAutoPip({
+        autoFocus: videoData.autoFocus,
+        tabSelected: win.gBrowser?.selectedBrowser == browser,
+        outOfSight: win.windowState == win.STATE_MINIMIZED || win.isFullyOccluded,
+      });
+    };
+    if (isStale()) {
+      return;
+    }
+    const players = new Set(Services.wm.getEnumerator(PIP_WINDOW_TYPE));
+    await this.#zenRequest.call(pip, wgp, videoData);
+    if (!isStale()) {
+      return;
+    }
+    for (const win of Services.wm.getEnumerator(PIP_WINDOW_TYPE)) {
+      if (!win.closed && !players.has(win) && pip.weakWinToBrowser.get(win) == browser) {
+        win.closeFromForeground();
+      }
+    }
+  };
 
   #onWindow = (win, topic) => {
     if (topic != "domwindowopened") {
@@ -1081,7 +1118,7 @@ this.zenTweaks = class extends ExtensionAPI {
     // обновления не достался модуль, закэшированный прежней версией.
     this.#resourceHost = `zen-tweaks-${this.extension.version.replaceAll(".", "-")}`;
     resourceProtocol().setSubstitution(this.#resourceHost, this.extension.rootURI);
-    const { pipTopBar } = ChromeUtils.importESModule(
+    const pipLayout = ChromeUtils.importESModule(
       `resource://${this.#resourceHost}/pip-layout.mjs`
     );
     const { promoteSpaceTab } = ChromeUtils.importESModule(
@@ -1114,7 +1151,7 @@ this.zenTweaks = class extends ExtensionAPI {
           { excludes: "arcPip" }
         ),
       ],
-      ["arcPip", new ArcPip(this.extension, pipTopBar)],
+      ["arcPip", new ArcPip(this.extension, pipLayout)],
       ["littleArc", new LittleArc(this.extension, littleArc)],
       // Glance уже устроен как Peek в Arc, меняется только вид кнопок
       ["arcGlance", Object.assign(new UserSheet(this.extension, "arc-glance.css"), { defaultEnabled: false })],
